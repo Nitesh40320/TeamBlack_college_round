@@ -593,4 +593,69 @@ describe('Audits API (/api/audits)', () => {
     expect(extractSpy).not.toHaveBeenCalled();
     expect(verifySpy).not.toHaveBeenCalled();
   });
+
+  it('should return per-judge votes via GET /api/audits/:id/judges', async () => {
+    const { AuditModel } = require('../src/models/Audit');
+
+    const auditDoc = new AuditModel({
+      id: 'audit-judges-test',
+      answer: 'Aspirin reduces fever.',
+      status: 'completed',
+      claims: [
+        {
+          id: 'c-judges-1',
+          text: 'Aspirin reduces fever.',
+          answerSpan: { start: 0, end: 22 },
+          claimType: 'factual',
+          verdict: 'SUPPORTED',
+          explanation: 'Supported claim.',
+          evidence: [],
+          confidence: { score: 0.95, level: 'high', uncertaintyReasons: [] },
+          contested: true,
+          judgeVotes: [
+            {
+              judgeId: 'j1',
+              name: 'Strict Fact Verifier',
+              promptStyle: 'strict',
+              verdict: 'SUPPORTED',
+              explanation: 'Strictly supported.',
+              confidenceScore: 0.95,
+            },
+            {
+              judgeId: 'j2',
+              name: 'Semantic NLI Verifier',
+              promptStyle: 'nli_semantic',
+              verdict: 'CONTRADICTED',
+              explanation: 'Slight semantic discrepancy.',
+              confidenceScore: 0.70,
+            },
+          ],
+        },
+      ],
+      overall: {
+        score: 80,
+        grade: 'B',
+        summary: 'Audit completed.',
+        counts: { SUPPORTED: 1, CONTRADICTED: 0, UNSUPPORTED: 0, UNVERIFIABLE: 0, AMBIGUOUS: 0 },
+      },
+      meta: {
+        timings: { totalMs: 10, chunkingMs: 2, extractionMs: 3, verificationMs: 3, analysisMs: 2 },
+        modelVersions: { embedder: 'e', verifier: 'v', analyzer: 'a' },
+        mode: 'mock',
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    await auditDoc.save();
+
+    const res = await request(app).get('/api/audits/audit-judges-test/judges');
+    expect(res.status).toBe(200);
+    expect(res.body.auditId).toBe('audit-judges-test');
+    expect(res.body.claims).toHaveLength(1);
+    expect(res.body.claims[0].claimId).toBe('c-judges-1');
+    expect(res.body.claims[0].contested).toBe(true);
+    expect(res.body.claims[0].judgeVotes).toHaveLength(2);
+    expect(res.body.claims[0].judgeVotes[0].name).toBe('Strict Fact Verifier');
+  });
 });

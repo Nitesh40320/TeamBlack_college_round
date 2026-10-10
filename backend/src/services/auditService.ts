@@ -205,6 +205,30 @@ export class AuditService {
     };
   }
 
+  public async getAuditJudges(id: string) {
+    const audit = await AuditModel.findOne({ id });
+    if (!audit) {
+      throw new AppError(404, 'NOT_FOUND', `Audit with ID '${id}' not found`);
+    }
+
+    const claims: Claim[] = (audit.claims || []).map((c: any) =>
+      typeof c.toObject === 'function' ? c.toObject() : c
+    );
+
+    const judgeVotesByClaim = claims.map((claim) => ({
+      claimId: claim.id,
+      claimText: claim.text,
+      verdict: claim.verdict,
+      contested: claim.contested || false,
+      judgeVotes: claim.judgeVotes || [],
+    }));
+
+    return {
+      auditId: audit.id,
+      claims: judgeVotesByClaim,
+    };
+  }
+
 
   public async getReasoningIssues(id: string) {
     const audit = await AuditModel.findOne({ id });

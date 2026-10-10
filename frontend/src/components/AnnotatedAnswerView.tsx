@@ -346,7 +346,14 @@ export const AnnotatedAnswerView: React.FC<AnnotatedAnswerViewProps> = ({
                       /* Claim Verdict Popover */
                       <>
                         <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
-                          <VerdictBadge verdict={segment.verdict || 'SUPPORTED'} size="sm" />
+                          <div className="flex items-center gap-1.5">
+                            <VerdictBadge verdict={segment.verdict || 'SUPPORTED'} size="sm" />
+                            {segment.claim?.contested && (
+                              <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/40 flex items-center gap-0.5">
+                                <ShieldAlert className="w-2.5 h-2.5 text-amber-400" /> Contested
+                              </span>
+                            )}
+                          </div>
                           {segment.category && (
                             <span className="font-mono text-[10px] uppercase font-bold text-rose-300 bg-rose-500/20 px-1.5 py-0.5 rounded border border-rose-500/30">
                               {CATEGORY_LABELS[segment.category] || segment.category}

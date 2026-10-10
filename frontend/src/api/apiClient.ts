@@ -244,3 +244,26 @@ export async function submitFeedback(
   }
 }
 
+export async function getAuditJudges(id: string): Promise<any> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/audits/${id}/judges`);
+    if (!res.ok) {
+      throw new Error(`Server returned status ${res.status}`);
+    }
+    return await res.json();
+  } catch (error) {
+    console.warn(`[apiClient] Failed to fetch audit judges for ${id}, using fallback.`, error);
+    const audit = mockAuditCache.get(id) || MOCK_AUDIT_RESULT;
+    return {
+      auditId: id,
+      claims: (audit.claims || []).map((claim) => ({
+        claimId: claim.id,
+        claimText: claim.text,
+        verdict: claim.verdict,
+        contested: claim.contested || false,
+        judgeVotes: claim.judgeVotes || [],
+      })),
+    };
+  }
+}
+

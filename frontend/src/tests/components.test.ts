@@ -59,4 +59,16 @@ describe('Audit Detail Components Logic & Filtering', () => {
     expect(nonSequitur).toBeDefined();
     expect(nonSequitur?.claimIds.length).toBe(2);
   });
+
+  it('identifies contested claims and handles multi-judge votes', () => {
+    const contestedClaim = MOCK_AUDIT_RESULT.claims.find((c) => c.contested);
+    expect(contestedClaim).toBeDefined();
+    expect(contestedClaim?.contested).toBe(true);
+    expect(contestedClaim?.judgeVotes).toBeDefined();
+    expect(contestedClaim?.judgeVotes?.length).toBe(3);
+    const judgeNames = contestedClaim?.judgeVotes?.map((j) => j.name);
+    expect(judgeNames).toContain('Strict Fact Verifier');
+    expect(judgeNames).toContain('Semantic NLI Verifier');
+    expect(judgeNames).toContain('Adversarial Examiner');
+  });
 });

@@ -218,6 +218,20 @@ export const getAuditSummary = async (
   }
 };
 
+export const getAuditJudges = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const result = await auditService.getAuditJudges(id);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const exportAuditReport = async (
   req: Request,
   res: Response,

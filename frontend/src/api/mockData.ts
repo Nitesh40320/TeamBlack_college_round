@@ -118,9 +118,36 @@ export const MOCK_AUDIT_RESULT: AuditResult = {
       evidence: [],
       confidence: {
         score: 0.75,
-        level: 'medium',
-        uncertaintyReasons: ['Subjective and vague phrasing.'],
+        level: "medium",
+        uncertaintyReasons: ["Subjective and vague phrasing.", "Judges disagreed on verdict (Strict Fact Verifier: AMBIGUOUS, Semantic NLI Verifier: UNVERIFIABLE, Adversarial Examiner: AMBIGUOUS)."],
       },
+      contested: true,
+      judgeVotes: [
+        {
+          judgeId: "judge-1",
+          name: "Strict Fact Verifier",
+          promptStyle: "strict",
+          verdict: "AMBIGUOUS",
+          explanation: "Passages provide mixed signals regarding subjective phrasing.",
+          confidenceScore: 0.82,
+        },
+        {
+          judgeId: "judge-2",
+          name: "Semantic NLI Verifier",
+          promptStyle: "nli_semantic",
+          verdict: "UNVERIFIABLE",
+          explanation: "Semantic entailment model marked subjective terms as unverifiable.",
+          confidenceScore: 0.78,
+        },
+        {
+          judgeId: "judge-3",
+          name: "Adversarial Examiner",
+          promptStyle: "adversarial",
+          verdict: "AMBIGUOUS",
+          explanation: "Adversarial check flagged conflicting contextual interpretations.",
+          confidenceScore: 0.85,
+        },
+      ],
     },
   ],
   reasoningIssues: [

@@ -16,6 +16,7 @@ import {
 
 import { ConfidenceMeter } from './ConfidenceMeter';
 import { FeedbackButtons } from './FeedbackButtons';
+import { JudgesPopover } from './JudgesPopover';
 
 interface ClaimDetailDrawerProps {
   claim: Claim | null;
@@ -88,6 +89,7 @@ export const ClaimDetailDrawer: React.FC<ClaimDetailDrawerProps> = ({
 
           <div className="flex items-center gap-3">
             <VerdictBadge verdict={claim.verdict} size="md" />
+            <JudgesPopover judgeVotes={claim.judgeVotes} contested={claim.contested} />
             <FeedbackButtons
               auditId={auditId}
               findingId={claim.id}
@@ -125,6 +127,11 @@ export const ClaimDetailDrawer: React.FC<ClaimDetailDrawerProps> = ({
               {claim.errorCategory && (
                 <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/30 text-xs font-mono font-bold">
                   Error: {claim.errorCategory}
+                </span>
+              )}
+              {claim.contested && (
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-mono font-bold animate-pulse">
+                  ⚡ Contested
                 </span>
               )}
               <span className="px-2.5 py-0.5 rounded-full bg-slate-900 border border-white/5 text-xs font-mono text-slate-400 flex items-center gap-1">

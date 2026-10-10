@@ -65,6 +65,15 @@ export interface Confidence {
   uncertaintyReasons: string[];
 }
 
+export interface JudgeVote {
+  judgeId: string;
+  name: string;
+  promptStyle: string;
+  verdict: Verdict;
+  explanation: string;
+  confidenceScore: number;
+}
+
 export interface Claim {
   id: string;
   text: string;
@@ -76,6 +85,8 @@ export interface Claim {
   explanation: string;
   evidence: Evidence[];
   confidence: Confidence;
+  judgeVotes?: JudgeVote[];
+  contested?: boolean;
 }
 
 export type ReasoningIssueType =

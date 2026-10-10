@@ -68,6 +68,15 @@ class Confidence(BaseModel):
     uncertaintyReasons: List[str]
 
 
+class JudgeVote(BaseModel):
+    judgeId: str
+    name: str
+    promptStyle: str
+    verdict: Verdict
+    explanation: str
+    confidenceScore: float = Field(default=0.85, ge=0.0, le=1.0)
+
+
 class Claim(BaseModel):
     id: str
     text: str
@@ -79,6 +88,8 @@ class Claim(BaseModel):
     explanation: str
     evidence: List[Evidence]
     confidence: Confidence
+    judgeVotes: List[JudgeVote] = Field(default_factory=list)
+    contested: bool = False
 
 
 class ReasoningIssue(BaseModel):

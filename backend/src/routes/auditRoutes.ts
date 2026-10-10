@@ -11,6 +11,7 @@ import {
   getReasoningIssues,
   getSafetyFlags,
   getAuditSummary,
+  getAuditJudges,
 } from '../controllers/auditController';
 import { submitFeedback } from '../controllers/feedbackController';
 
@@ -22,6 +23,7 @@ router.get('/audits/:id', getAuditById);
 router.get('/audits/:id/stream', streamAuditProgress);
 router.get('/audits/:id/export', exportAuditReport);
 router.get('/audits/:id/summary', getAuditSummary);
+router.get('/audits/:id/judges', getAuditJudges);
 router.get('/audits/:id/findings', getFindings);
 router.get('/audits/:id/annotations', getAnnotations);
 router.get('/audits/:id/reasoning', getReasoningIssues);

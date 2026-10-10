@@ -25,7 +25,7 @@ from model.schemas.result import (
 from model.schemas.pipeline import ExtractedClaimOut
 from model.pipeline.retriever import retrieve_chunks
 from model.pipeline.nli import score_nli_pairs
-from model.pipeline.judge import run_llm_judge, JudgeOutput
+from model.pipeline.judge import run_multi_judge, JudgeOutput
 from model.pipeline.localizer import localize_error
 from model.pipeline.confidence import compute_confidence
 
@@ -65,6 +65,8 @@ async def verify_claim(
                 level="high",
                 uncertaintyReasons=["Subjective opinion claim."],
             ),
+            judgeVotes=[],
+            contested=False,
         )
 
     # 2. Handle empty sources
@@ -93,6 +95,8 @@ async def verify_claim(
                 level="high",
                 uncertaintyReasons=["No source documents provided."],
             ),
+            judgeVotes=[],
+            contested=False,
         )
 
     # 3. Hybrid Retrieval
@@ -122,24 +126,32 @@ async def verify_claim(
                 level="medium",
                 uncertaintyReasons=["No matching passages retrieved."],
             ),
+            judgeVotes=[],
+            contested=False,
         )
 
     # 4. NLI Scoring
     pairs = [(chunk.text, claim_input.text) for chunk in retrieved_chunks]
     nli_scores = score_nli_pairs(pairs)
 
-    # 5. LLM Judge with NLI Fallback
+    # 5. Multi-LLM Judge with NLI Fallback
     if llm_client is None:
         llm_client = LLMClient()
 
     used_nli_fallback = False
     judge_output: Optional[JudgeOutput] = None
+    judge_votes = []
+    is_contested = False
 
     try:
-        judge_output = await run_llm_judge(claim_input.text, claim_input.claimType, retrieved_chunks, llm_client)
+        judge_output, judge_votes, is_contested = await run_multi_judge(
+            claim_input.text, claim_input.claimType, retrieved_chunks, llm_client
+        )
     except Exception:
         used_nli_fallback = True
         judge_output = None
+        judge_votes = []
+        is_contested = False
 
     # 6. Determine final verdict & error category
     verdict: Verdict = "UNSUPPORTED"
@@ -247,6 +259,15 @@ async def verify_claim(
     if used_nli_fallback:
         confidence_res.uncertaintyReasons.append("NLI-only fallback mode used (LLM judge unavailable).")
 
+    if is_contested:
+        vote_summary = ", ".join(f"{v.name}: {v.verdict}" for v in judge_votes)
+        confidence_res.uncertaintyReasons.append(f"Judges disagreed on verdict ({vote_summary}).")
+        confidence_res.score = round(max(0.1, confidence_res.score - 0.20), 4)
+        if confidence_res.score < 0.60:
+            confidence_res.level = "low"
+        elif confidence_res.score < 0.85:
+            confidence_res.level = "medium"
+
     return Claim(
         id=claim_input.id,
         text=claim_input.text,
@@ -258,4 +279,6 @@ async def verify_claim(
         explanation=explanation,
         evidence=evidence_list[:5],
         confidence=confidence_res,
+        judgeVotes=judge_votes,
+        contested=is_contested,
     )

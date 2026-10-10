@@ -39,6 +39,28 @@ const ConfidenceSchema = new Schema(
   { _id: false }
 );
 
+const JudgeVoteSchema = new Schema(
+  {
+    judgeId: { type: String, required: true },
+    name: { type: String, required: true },
+    promptStyle: { type: String, required: true },
+    verdict: {
+      type: String,
+      enum: [
+        'SUPPORTED',
+        'CONTRADICTED',
+        'UNSUPPORTED',
+        'UNVERIFIABLE',
+        'AMBIGUOUS',
+      ],
+      required: true,
+    },
+    explanation: { type: String, required: true },
+    confidenceScore: { type: Number, default: 0.85 },
+  },
+  { _id: false }
+);
+
 const ClaimSchema = new Schema(
   {
     id: { type: String, required: true },
@@ -75,6 +97,8 @@ const ClaimSchema = new Schema(
     explanation: { type: String, required: true },
     evidence: [EvidenceSchema],
     confidence: { type: ConfidenceSchema, required: true },
+    judgeVotes: [JudgeVoteSchema],
+    contested: { type: Boolean, default: false },
   },
   { _id: false }
 );
