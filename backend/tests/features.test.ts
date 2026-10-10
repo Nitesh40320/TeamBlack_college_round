@@ -288,4 +288,21 @@ describe('3. Feedback System (POST /api/audits/:id/feedback & GET /api/feedback/
     expect(res.body.byFindingType.claim.correct).toBe(2);
     expect(res.body.byFindingType.safety.incorrect).toBe(1);
   });
+
+  it('should export feedback JSONL via GET /api/feedback/export', async () => {
+    const res = await request(app).get('/api/feedback/export');
+    expect(res.status).toBe(200);
+    expect(res.header['content-type']).toContain('application/x-jsonlines');
+  });
+
+  it('should trigger recalibration via POST /api/feedback/recalibrate', async () => {
+    const res = await request(app)
+      .post('/api/feedback/recalibrate')
+      .set({ 'x-admin-key': 'admin' });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('success');
+    expect(res.body.ece_before).toBeDefined();
+    expect(res.body.ece_after).toBeDefined();
+    expect(res.body.calibration_drift).toBeDefined();
+  });
 });

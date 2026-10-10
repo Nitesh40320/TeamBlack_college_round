@@ -9,9 +9,12 @@ import { NewAuditPage } from './pages/NewAuditPage';
 import { AuditDetailPage } from './pages/AuditDetailPage';
 import { HistoryPage } from './pages/HistoryPage';
 
-// Lazy-load Evaluation Benchmark Page for bundle optimization
+// Lazy-load Evaluation & Admin Pages for bundle optimization
 const EvaluationPage = lazy(() =>
   import('./pages/EvaluationPage').then((m) => ({ default: m.EvaluationPage }))
+);
+const AdminPage = lazy(() =>
+  import('./pages/AdminPage').then((m) => ({ default: m.AdminPage }))
 );
 
 const queryClient = new QueryClient({
@@ -43,6 +46,7 @@ export const App: React.FC = () => {
                   <Route path="audit/:id" element={<AuditDetailPage />} />
                   <Route path="history" element={<HistoryPage />} />
                   <Route path="evaluation" element={<EvaluationPage />} />
+                  <Route path="admin" element={<AdminPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>
               </Routes>

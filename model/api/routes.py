@@ -2,7 +2,8 @@ import asyncio
 import json
 import os
 import time
-from typing import List
+from typing import List, Dict, Any
+from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException
 
 from model.config import settings
@@ -303,4 +304,15 @@ async def generate_corrections_endpoint(request: CorrectionsRequest):
         answer_text=request.answer,
         llm_client=llm_client,
     )
+
+
+class RecalibrateRequest(BaseModel):
+    feedbackEntries: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+@router.post("/v1/recalibrate", status_code=200)
+async def recalibrate_endpoint(request: RecalibrateRequest):
+    """Ingest feedback entries, add to dev split, re-fit calibrator, and report ECE before/after."""
+    from model.eval.recalibrate import refit_calibrator_and_report_ece
+    return refit_calibrator_and_report_ece(request.feedbackEntries)
 
