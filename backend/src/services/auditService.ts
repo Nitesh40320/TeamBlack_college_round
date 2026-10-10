@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { AuditModel } from '../models/Audit';
 import { SourceModel } from '../models/Source';
 import { auditOrchestrator } from './auditOrchestrator';
+import { modelClient } from './modelClient';
 import { AuditRequestInput, AuditResult, Claim, Verdict, ErrorCategory } from '../types/contract';
 import { AppError } from '../middleware/errorHandler';
 
@@ -226,6 +227,42 @@ export class AuditService {
     return {
       auditId: audit.id,
       claims: judgeVotesByClaim,
+    };
+  }
+
+  public async generateAndStoreCorrections(id: string) {
+    const audit = await AuditModel.findOne({ id });
+    if (!audit) {
+      throw new AppError(404, 'NOT_FOUND', `Audit with ID '${id}' not found`);
+    }
+
+    const sourcesDocs = await SourceModel.find({ auditId: id });
+    const sources = sourcesDocs.map((s) => ({
+      id: s.id,
+      title: s.title,
+      text: s.text,
+    }));
+
+    const claims: Claim[] = (audit.claims || []).map((c: any) =>
+      typeof c.toObject === 'function' ? c.toObject() : c
+    );
+
+    const result = await modelClient.generateCorrections(
+      audit.id,
+      claims,
+      sources,
+      audit.answer || ''
+    );
+
+    audit.corrections = result.corrections;
+    audit.correctedAnswer = result.correctedAnswer;
+    audit.updatedAt = new Date().toISOString();
+    await audit.save();
+
+    return {
+      auditId: audit.id,
+      corrections: result.corrections,
+      correctedAnswer: result.correctedAnswer,
     };
   }
 

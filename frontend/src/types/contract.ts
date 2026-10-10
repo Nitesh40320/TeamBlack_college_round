@@ -178,3 +178,23 @@ export interface ErrorResponse {
     details?: unknown;
   };
 }
+
+export interface ClaimCorrection {
+  claimId: string;
+  originalText: string;
+  originalSpan: Span;
+  verdict: Verdict;
+  action: 'rewrite' | 'remove';
+  suggestedText?: string;
+  supportingSourceId?: string;
+  supportingPassageText?: string;
+  explanation: string;
+  verifiedVerdict: Verdict;
+  verifiedScore: number;
+}
+
+export interface CorrectionsResponse {
+  auditId: string;
+  corrections: ClaimCorrection[];
+  correctedAnswer: string;
+}

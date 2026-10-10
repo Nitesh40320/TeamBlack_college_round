@@ -232,6 +232,20 @@ export const getAuditJudges = async (
   }
 };
 
+export const generateCorrections = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const result = await auditService.generateAndStoreCorrections(id);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const exportAuditReport = async (
   req: Request,
   res: Response,

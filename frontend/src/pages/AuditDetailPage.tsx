@@ -10,6 +10,7 @@ import { SourceViewerPanel } from '../components/SourceViewerPanel';
 import { AnnotatedAnswerView } from '../components/AnnotatedAnswerView';
 import { SafetyBanner } from '../components/SafetyBanner';
 import { OverallAssessmentCard } from '../components/OverallAssessmentCard';
+import { CorrectionsView } from '../components/CorrectionsView';
 import { ConfidenceMeter } from '../components/ConfidenceMeter';
 import { FeedbackButtons } from '../components/FeedbackButtons';
 import { rerunAudit } from '../api/apiClient';
@@ -425,6 +426,15 @@ export const AuditDetailPage: React.FC = () => {
           reasoningIssues={audit.reasoningIssues || []}
           safetyFlags={audit.safetyFlags || []}
           onSelectFinding={handleSelectFindingById}
+        />
+      )}
+
+      {/* Grounded Auto-Fixes & Corrections View */}
+      {audit.id && (
+        <CorrectionsView
+          auditId={audit.id}
+          claims={audit.claims || []}
+          answer={audit.answer}
         />
       )}
 

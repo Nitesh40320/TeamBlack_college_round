@@ -658,4 +658,57 @@ describe('Audits API (/api/audits)', () => {
     expect(res.body.claims[0].judgeVotes).toHaveLength(2);
     expect(res.body.claims[0].judgeVotes[0].name).toBe('Strict Fact Verifier');
   });
+
+  it('should generate and store grounded corrections via POST /api/audits/:id/corrections', async () => {
+    const { AuditModel } = require('../src/models/Audit');
+
+    const auditDoc = new AuditModel({
+      id: 'audit-corrections-test',
+      answer: 'Aspirin standard dose is 1000 mg every 4 hours.',
+      status: 'completed',
+      claims: [
+        {
+          id: 'c-corr-1',
+          text: 'Aspirin standard dose is 1000 mg every 4 hours.',
+          answerSpan: { start: 0, end: 47 },
+          claimType: 'numeric',
+          verdict: 'CONTRADICTED',
+          errorCategory: 'NUMERIC_MISMATCH',
+          explanation: 'Dose exceeds 900 mg limit.',
+          evidence: [
+            {
+              sourceId: 'src-1',
+              span: { start: 0, end: 50 },
+              text: 'Adult dose for antipyresis is 300-900 mg every 4-6 hours.',
+              relation: 'contradicts',
+              score: 0.95,
+            },
+          ],
+          confidence: { score: 0.9, level: 'high', uncertaintyReasons: [] },
+        },
+      ],
+      overall: {
+        score: 50,
+        grade: 'F',
+        summary: 'Audit completed.',
+        counts: { SUPPORTED: 0, CONTRADICTED: 1, UNSUPPORTED: 0, UNVERIFIABLE: 0, AMBIGUOUS: 0 },
+      },
+      meta: {
+        timings: { totalMs: 10, chunkingMs: 2, extractionMs: 3, verificationMs: 3, analysisMs: 2 },
+        modelVersions: { embedder: 'e', verifier: 'v', analyzer: 'a' },
+        mode: 'mock',
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    await auditDoc.save();
+
+    const res = await request(app).post('/api/audits/audit-corrections-test/corrections');
+    expect(res.status).toBe(200);
+    expect(res.body.auditId).toBe('audit-corrections-test');
+    expect(res.body.corrections).toBeDefined();
+    expect(res.body.corrections.length).toBeGreaterThan(0);
+    expect(res.body.correctedAnswer).toBeDefined();
+  });
 });

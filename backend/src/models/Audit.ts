@@ -5,12 +5,31 @@ export interface IAuditDocument extends Omit<AuditResult, 'id'>, Document {
   id: string;
   answer?: string;
   question?: string;
+  corrections?: any[];
+  correctedAnswer?: string;
 }
 
 const SpanSchema = new Schema(
   {
     start: { type: Number, required: true },
     end: { type: Number, required: true },
+  },
+  { _id: false }
+);
+
+const ClaimCorrectionSchema = new Schema(
+  {
+    claimId: { type: String, required: true },
+    originalText: { type: String, required: true },
+    originalSpan: { type: SpanSchema, required: true },
+    verdict: { type: String, required: true },
+    action: { type: String, enum: ['rewrite', 'remove'], required: true },
+    suggestedText: { type: String },
+    supportingSourceId: { type: String },
+    supportingPassageText: { type: String },
+    explanation: { type: String, required: true },
+    verifiedVerdict: { type: String, required: true },
+    verifiedScore: { type: Number, default: 0.9 },
   },
   { _id: false }
 );
@@ -216,6 +235,8 @@ const AuditSchema = new Schema<IAuditDocument>(
     claims: [ClaimSchema],
     reasoningIssues: [ReasoningIssueSchema],
     safetyFlags: [SafetyFlagSchema],
+    corrections: [ClaimCorrectionSchema],
+    correctedAnswer: { type: String },
     overall: { type: OverallScoreSchema, required: true },
     meta: { type: MetaSchema, required: true },
     progress: { type: ProgressSchema },

@@ -12,6 +12,7 @@ import {
   getSafetyFlags,
   getAuditSummary,
   getAuditJudges,
+  generateCorrections,
 } from '../controllers/auditController';
 import { submitFeedback } from '../controllers/feedbackController';
 
@@ -28,6 +29,7 @@ router.get('/audits/:id/findings', getFindings);
 router.get('/audits/:id/annotations', getAnnotations);
 router.get('/audits/:id/reasoning', getReasoningIssues);
 router.get('/audits/:id/safety', getSafetyFlags);
+router.post('/audits/:id/corrections', generateCorrections);
 router.post('/audits/:id/rerun', rerunAudit);
 router.post('/audits/:id/feedback', submitFeedback);
 

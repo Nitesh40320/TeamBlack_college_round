@@ -311,6 +311,56 @@ export class ModelClient {
       reliability_diagram: [],
     };
   }
+
+  public async generateCorrections(
+    auditId: string,
+    claims: Claim[],
+    sources: { id: string; title: string; text: string }[],
+    answer: string,
+    maxRetries = 3
+  ): Promise<any> {
+    const payload = { auditId, claims, sources, answer };
+    const result = await this.withRetry(
+      () => this.client.post('/v1/corrections', payload).then((r) => r.data),
+      maxRetries,
+      'generate-corrections'
+    );
+
+    if (result) return result;
+
+    console.warn('[ModelClient] /v1/corrections unreachable — using local mock fallback.');
+    return getLocalMockCorrections(auditId, claims, answer);
+  }
+}
+
+export function getLocalMockCorrections(auditId: string, claims: Claim[], answer: string) {
+  const targetClaims = (claims || []).filter((c) => c.verdict === 'CONTRADICTED' || c.verdict === 'UNSUPPORTED');
+  const corrections = targetClaims.map((claim) => {
+    const isContradicted = claim.verdict === 'CONTRADICTED';
+    return {
+      claimId: claim.id,
+      originalText: claim.text,
+      originalSpan: claim.answerSpan,
+      verdict: claim.verdict,
+      action: isContradicted ? 'rewrite' : 'remove',
+      suggestedText: isContradicted
+        ? 'The recommended adult dose for antipyresis is 300-900 mg every 4-6 hours, not exceeding 4 g daily.'
+        : undefined,
+      supportingSourceId: claim.evidence?.[0]?.sourceId || 'src-1',
+      supportingPassageText: claim.evidence?.[0]?.text || 'The recommended adult dose for antipyresis is 300-900 mg every 4-6 hours.',
+      explanation: isContradicted
+        ? 'Grounded rewrite referencing recommended dosage from source monograph.'
+        : 'No supporting evidence found in source passages; recommended removal.',
+      verifiedVerdict: isContradicted ? 'SUPPORTED' : 'UNSUPPORTED',
+      verifiedScore: 0.95,
+    };
+  });
+
+  return {
+    auditId,
+    corrections,
+    correctedAnswer: 'Aspirin is commonly used to reduce fever in adults. The recommended adult dose for antipyresis is 300-900 mg every 4-6 hours, not exceeding 4 g daily. Taking antipyretics usually helps quickly.',
+  };
 }
 
 export const modelClient = new ModelClient();

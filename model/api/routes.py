@@ -18,8 +18,9 @@ from model.pipeline import (
 )
 from model.pipeline.chunker import chunk_source
 from model.pipeline.claim_extractor import extract_claims
+from model.pipeline.corrector import generate_corrections
 from model.schemas import AuditRequest, AuditResult, Claim
-from model.schemas.result import Meta, Timings, ModelVersions
+from model.schemas.result import Meta, Timings, ModelVersions, CorrectionsRequest, CorrectionsResponse
 from model.schemas.pipeline import (
     ChunkItem,
     ChunkRequest,
@@ -289,4 +290,17 @@ async def run_audit(request: AuditRequest):
             status_code=504,
             detail=f"Audit execution timed out after {settings.AUDIT_TIMEOUT_SECONDS} seconds.",
         )
+
+
+@router.post("/v1/corrections", response_model=CorrectionsResponse, status_code=200)
+async def generate_corrections_endpoint(request: CorrectionsRequest):
+    """Generate grounded rewrites/corrections for contradicted and unsupported claims."""
+    llm_client = LLMClient()
+    return await generate_corrections(
+        audit_id=request.auditId,
+        claims=request.claims,
+        sources=request.sources,
+        answer_text=request.answer,
+        llm_client=llm_client,
+    )
 

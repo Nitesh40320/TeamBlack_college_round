@@ -158,3 +158,31 @@ class AuditResult(BaseModel):
     error: Optional[str] = None
     createdAt: str
     updatedAt: str
+
+
+class ClaimCorrection(BaseModel):
+    claimId: str
+    originalText: str
+    originalSpan: Span
+    verdict: Verdict
+    action: Literal["rewrite", "remove"]
+    suggestedText: Optional[str] = None
+    supportingSourceId: Optional[str] = None
+    supportingPassageText: Optional[str] = None
+    explanation: str
+    verifiedVerdict: Verdict
+    verifiedScore: float = Field(default=0.90, ge=0.0, le=1.0)
+
+
+class CorrectionsRequest(BaseModel):
+    auditId: str
+    claims: List[Claim]
+    sources: List[Source]
+    answer: str
+
+
+class CorrectionsResponse(BaseModel):
+    auditId: str
+    corrections: List[ClaimCorrection]
+    correctedAnswer: str
+

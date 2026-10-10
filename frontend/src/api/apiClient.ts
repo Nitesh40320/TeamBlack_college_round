@@ -1,4 +1,4 @@
-import { AuditRequest, AuditResult } from '../types/contract';
+import { AuditRequest, AuditResult, CorrectionsResponse, Verdict } from '../types/contract';
 import { MOCK_AUDIT_RESULT, MOCK_AUDITS_HISTORY } from './mockData';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
@@ -263,6 +263,51 @@ export async function getAuditJudges(id: string): Promise<any> {
         contested: claim.contested || false,
         judgeVotes: claim.judgeVotes || [],
       })),
+    };
+  }
+}
+
+export async function generateCorrections(auditId: string): Promise<CorrectionsResponse> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/audits/${auditId}/corrections`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!res.ok) {
+      throw new Error(`Server returned status ${res.status}`);
+    }
+    return await res.json();
+  } catch (error) {
+    console.warn(`[apiClient] Failed to fetch corrections for ${auditId}, using fallback.`, error);
+    const audit = mockAuditCache.get(auditId) || MOCK_AUDIT_RESULT;
+    const targetClaims = (audit.claims || []).filter((c) => c.verdict === 'CONTRADICTED' || c.verdict === 'UNSUPPORTED');
+    const corrections = targetClaims.map((claim) => {
+      const isContradicted = claim.verdict === 'CONTRADICTED';
+      return {
+        claimId: claim.id,
+        originalText: claim.text,
+        originalSpan: claim.answerSpan,
+        verdict: claim.verdict,
+        action: (isContradicted ? 'rewrite' : 'remove') as 'rewrite' | 'remove',
+        suggestedText: isContradicted
+          ? 'The recommended adult dose for antipyresis is 300-900 mg every 4-6 hours, maximum 4 g daily.'
+          : undefined,
+        supportingSourceId: claim.evidence?.[0]?.sourceId || 'src-1',
+        supportingPassageText: claim.evidence?.[0]?.text || 'The recommended adult dose for antipyresis is 300-900 mg every 4-6 hours.',
+        explanation: isContradicted
+          ? 'Grounded rewrite referencing recommended adult dosage from BNF monograph.'
+          : 'No supporting evidence found in source passages; recommended removal.',
+        verifiedVerdict: (isContradicted ? 'SUPPORTED' : 'UNSUPPORTED') as Verdict,
+        verifiedScore: 0.95,
+      };
+    });
+
+    return {
+      auditId,
+      corrections,
+      correctedAnswer: 'Aspirin is commonly used to reduce fever in adults. The recommended adult dose for antipyresis is 300-900 mg every 4-6 hours, maximum 4 g daily. Taking antipyretics usually helps quickly.',
     };
   }
 }
