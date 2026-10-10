@@ -27,6 +27,7 @@ from model.pipeline.retriever import retrieve_chunks
 from model.pipeline.nli import score_nli_pairs
 from model.pipeline.judge import run_llm_judge, JudgeOutput
 from model.pipeline.localizer import localize_error
+from model.pipeline.confidence import compute_confidence
 
 
 async def verify_claim(
@@ -230,23 +231,21 @@ async def verify_claim(
     error_span = localization.errorSpan
     explanation = localization.explanation
 
-    # 9. Compute Confidence Score & Level
-    if verdict == "SUPPORTED":
-        conf_score = 0.95
-        conf_level: ConfidenceLevel = "high"
-    elif verdict == "CONTRADICTED":
-        conf_score = 0.92
-        conf_level: ConfidenceLevel = "high"
-    elif verdict in ("AMBIGUOUS", "UNVERIFIABLE"):
-        conf_score = 0.75
-        conf_level: ConfidenceLevel = "medium"
-    else:  # UNSUPPORTED
-        conf_score = 0.85
-        conf_level: ConfidenceLevel = "medium"
+    # 9. Compute Calibrated Confidence Score & Level
+    source_text_full = "\n".join(s.text for s in sources) if sources else ""
+    confidence_res = compute_confidence(
+        verdict=verdict,
+        claim_text=claim_input.text,
+        evidence_list=evidence_list[:5],
+        nli_scores=nli_scores,
+        judge_output=judge_output,
+        is_opinion=(claim_input.claimType == "opinion"),
+        is_ambiguous=(verdict == "AMBIGUOUS"),
+        source_text=source_text_full,
+    )
 
-    uncertainty_reasons: List[str] = []
     if used_nli_fallback:
-        uncertainty_reasons.append("NLI-only fallback mode used (LLM judge unavailable).")
+        confidence_res.uncertaintyReasons.append("NLI-only fallback mode used (LLM judge unavailable).")
 
     return Claim(
         id=claim_input.id,
@@ -258,9 +257,5 @@ async def verify_claim(
         errorSpan=error_span,
         explanation=explanation,
         evidence=evidence_list[:5],
-        confidence=Confidence(
-            score=conf_score,
-            level=conf_level,
-            uncertaintyReasons=uncertainty_reasons,
-        ),
+        confidence=confidence_res,
     )

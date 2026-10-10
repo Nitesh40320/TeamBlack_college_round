@@ -1,3 +1,5 @@
+import json
+import os
 import time
 from typing import List
 from fastapi import APIRouter
@@ -9,11 +11,12 @@ from model.pipeline import (
     verify_claim,
     analyze_reasoning,
     analyze_safety,
+    compute_overall_assessment,
 )
 from model.pipeline.chunker import chunk_source
 from model.pipeline.claim_extractor import extract_claims
 from model.schemas import AuditRequest, AuditResult, Claim
-from model.schemas.result import OverallScore, VerdictCounts, Meta, Timings, ModelVersions
+from model.schemas.result import Meta, Timings, ModelVersions
 from model.schemas.pipeline import (
     ChunkItem,
     ChunkRequest,
@@ -35,6 +38,21 @@ async def get_health():
         "version": settings.VERSION,
         "mode": settings.MODEL_MODE,
     }
+
+
+@router.get("/v1/eval/latest", status_code=200)
+async def get_latest_eval():
+    """Return the latest evaluation metrics report."""
+    results_path = os.path.join("model", "eval", "results", "latest.json")
+    if not os.path.exists(results_path):
+        results_path = os.path.join("eval", "results", "latest.json")
+    
+    if os.path.exists(results_path):
+        with open(results_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    
+    from model.eval.run_eval import run_evaluation_on_split
+    return run_evaluation_on_split()
 
 
 @router.post("/v1/chunk", response_model=ChunkResponse, status_code=200)
@@ -123,6 +141,10 @@ async def run_audit(request: AuditRequest):
                 if s.id not in existing_sids:
                     res.safetyFlags.append(s)
 
+        # Update overall assessment with full evaluation logic
+        res.overall = compute_overall_assessment(
+            res.claims, res.reasoningIssues, res.safetyFlags
+        )
         return res
 
     # Live execution pipeline
@@ -156,24 +178,7 @@ async def run_audit(request: AuditRequest):
         request.answer, claims, request.sources, llm_client
     )
 
-    # Compute verdict counts and grade
-    counts = VerdictCounts()
-    for c in claims:
-        if c.verdict == "SUPPORTED":
-            counts.SUPPORTED += 1
-        elif c.verdict == "CONTRADICTED":
-            counts.CONTRADICTED += 1
-        elif c.verdict == "UNSUPPORTED":
-            counts.UNSUPPORTED += 1
-        elif c.verdict == "UNVERIFIABLE":
-            counts.UNVERIFIABLE += 1
-        elif c.verdict == "AMBIGUOUS":
-            counts.AMBIGUOUS += 1
-
-    total_claims = len(claims) or 1
-    score = (counts.SUPPORTED / float(total_claims)) * 100.0
-    grade = "A" if score >= 90 else ("B" if score >= 75 else ("C" if score >= 60 else "D"))
-
+    overall = compute_overall_assessment(claims, reasoning_issues, safety_flags)
     total_ms = (time.time() - start_time) * 1000.0
 
     return AuditResult(
@@ -182,12 +187,7 @@ async def run_audit(request: AuditRequest):
         claims=claims,
         reasoningIssues=reasoning_issues,
         safetyFlags=safety_flags,
-        overall=OverallScore(
-            score=round(score, 1),
-            grade=grade,  # type: ignore
-            summary=f"Audit completed: {counts.SUPPORTED} supported, {counts.CONTRADICTED} contradicted out of {total_claims} claims.",
-            counts=counts,
-        ),
+        overall=overall,
         meta=Meta(
             timings=Timings(
                 totalMs=round(total_ms, 2),

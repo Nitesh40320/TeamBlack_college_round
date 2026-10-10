@@ -7,6 +7,8 @@ from model.pipeline.judge import run_llm_judge, JudgeOutput
 from model.pipeline.verifier import verify_claim
 from model.pipeline.reasoning import analyze_reasoning
 from model.pipeline.safety import analyze_safety
+from model.pipeline.confidence import compute_confidence, Calibrator
+from model.pipeline.assessment import compute_overall_assessment
 
 __all__ = [
     "get_mock_audit_result",
@@ -23,5 +25,7 @@ __all__ = [
     "verify_claim",
     "analyze_reasoning",
     "analyze_safety",
+    "compute_confidence",
+    "Calibrator",
+    "compute_overall_assessment",
 ]
-
