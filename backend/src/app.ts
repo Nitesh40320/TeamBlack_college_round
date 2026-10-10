@@ -5,6 +5,8 @@ import { requestLogger } from './middleware/requestLogger';
 import { errorHandler } from './middleware/errorHandler';
 import healthRoutes from './routes/healthRoutes';
 import auditRoutes from './routes/auditRoutes';
+import evalRoutes from './routes/evalRoutes';
+import feedbackRoutes from './routes/feedbackRoutes';
 
 const app = express();
 
@@ -16,6 +18,9 @@ app.use(requestLogger);
 // Mount routes
 app.use('/', healthRoutes);
 app.use('/api', auditRoutes);
+app.use('/api', evalRoutes);
+app.use('/api', feedbackRoutes);
+
 
 // Catch 404
 app.use((_req, res) => {

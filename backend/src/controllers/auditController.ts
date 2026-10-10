@@ -126,3 +126,18 @@ export const getAnnotations = async (
     next(error);
   }
 };
+
+export const getAuditSummary = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const result = await auditService.getAuditSummary(id);
+    res.status(200).json(result);
+  } catch (error) {
+    next(error);
+  }
+};
+

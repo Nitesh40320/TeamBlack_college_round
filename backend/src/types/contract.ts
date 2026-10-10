@@ -165,3 +165,13 @@ export interface AuditResult {
   createdAt: string;
   updatedAt: string;
 }
+
+export const FeedbackInputSchema = z.object({
+  findingType: z.enum(['claim', 'reasoning', 'safety']),
+  findingId: z.string().min(1),
+  verdict: z.enum(['correct', 'incorrect']),
+  comment: z.string().max(2000).optional(),
+});
+
+export type FeedbackInput = z.infer<typeof FeedbackInputSchema>;
+

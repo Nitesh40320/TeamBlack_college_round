@@ -63,8 +63,14 @@ backend/
 - `POST /api/audits` -> Submit new audit (runs orchestrator: `queued` → `extracting` → `verifying` → `analyzing` → `completed`)
 - `GET /api/audits` -> List recent audits
 - `GET /api/audits/:id` -> Fetch single audit by ID (includes claims, reasoningIssues, safetyFlags, and overall summary)
+- `GET /api/audits/:id/summary` -> Fetch executive audit summary (grade, score, counts, top findings, and confidence calibration note)
 - `GET /api/audits/:id/findings` -> Fetch findings with filters (`verdict`, `category`, `claimType`) and aggregated summary
 - `GET /api/audits/:id/annotations` -> Fetch sorted, non-overlapping annotations projection for UI highlighting
 - `GET /api/audits/:id/reasoning` -> Fetch reasoning issues list for audit
 - `GET /api/audits/:id/safety` -> Fetch safety flags list for audit
 - `POST /api/audits/:id/rerun` -> Rerun audit (supports `?fromStage=analyzing` to rerun reasoning & safety analysis without re-running verification)
+- `GET /api/eval/latest` -> Proxy model's latest evaluation benchmark results (with in-memory caching and graceful empty state fallback)
+- `POST /api/audits/:id/feedback` -> Submit user feedback on a finding (`findingType`, `findingId`, `verdict: correct|incorrect`, `comment?`) with duplicate vote prevention per client session
+- `GET /api/feedback/stats` -> Fetch aggregate feedback metrics (total votes, correct/incorrect count, accuracy %, and breakdown by finding type)
+
+

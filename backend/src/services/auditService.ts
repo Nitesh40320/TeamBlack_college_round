@@ -126,6 +126,86 @@ export class AuditService {
     };
   }
 
+  public async getAuditSummary(id: string) {
+    const audit = await AuditModel.findOne({ id });
+    if (!audit) {
+      throw new AppError(404, 'NOT_FOUND', `Audit with ID '${id}' not found`);
+    }
+
+    const claims: Claim[] = (audit.claims || []).map((c: any) =>
+      typeof c.toObject === 'function' ? c.toObject() : c
+    );
+    const reasoningIssues = (audit.reasoningIssues || []).map((r: any) =>
+      typeof r.toObject === 'function' ? r.toObject() : r
+    );
+    const safetyFlags = (audit.safetyFlags || []).map((s: any) =>
+      typeof s.toObject === 'function' ? s.toObject() : s
+    );
+
+    const topFindings: Array<{
+      id: string;
+      findingType: 'claim' | 'reasoning' | 'safety';
+      verdictOrSeverity: string;
+      text: string;
+      explanation: string;
+      confidence?: any;
+    }> = [];
+
+    for (const flag of safetyFlags) {
+      topFindings.push({
+        id: flag.id,
+        findingType: 'safety',
+        verdictOrSeverity: flag.severity,
+        text: `Safety Concern (${flag.domain}): ${flag.recommendation || flag.explanation}`,
+        explanation: flag.explanation,
+      });
+    }
+
+    for (const issue of reasoningIssues) {
+      topFindings.push({
+        id: issue.id,
+        findingType: 'reasoning',
+        verdictOrSeverity: issue.type,
+        text: `Flawed Inference (${issue.type}): ${issue.explanation}`,
+        explanation: issue.explanation,
+        confidence: issue.confidence,
+      });
+    }
+
+    for (const claim of claims) {
+      if (claim.verdict !== 'SUPPORTED') {
+        topFindings.push({
+          id: claim.id,
+          findingType: 'claim',
+          verdictOrSeverity: claim.verdict,
+          text: claim.text,
+          explanation: claim.explanation,
+          confidence: claim.confidence,
+        });
+      }
+    }
+
+    const calibrationNote =
+      'Confidence describes how sure the system is about the FINDING and is never a correctness guarantee.';
+
+    return {
+      auditId: audit.id,
+      grade: audit.overall?.grade || 'A',
+      score: audit.overall?.score || 0,
+      summary: audit.overall?.summary || '',
+      counts: audit.overall?.counts || {
+        SUPPORTED: 0,
+        CONTRADICTED: 0,
+        UNSUPPORTED: 0,
+        UNVERIFIABLE: 0,
+        AMBIGUOUS: 0,
+      },
+      topFindings: topFindings.slice(0, 10),
+      calibrationNote,
+    };
+  }
+
+
   public async getReasoningIssues(id: string) {
     const audit = await AuditModel.findOne({ id });
     if (!audit) {

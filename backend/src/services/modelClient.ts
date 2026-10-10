@@ -275,6 +275,43 @@ export class ModelClient {
 
     return { reasoningIssues: [], safetyFlags: [] };
   }
+
+  private evalCache: { data: any; timestamp: number } | null = null;
+  private evalCacheTtlMs = 60000;
+
+  public async getLatestEval(maxRetries = 2): Promise<any> {
+    const now = Date.now();
+    if (this.evalCache && now - this.evalCache.timestamp < this.evalCacheTtlMs) {
+      return this.evalCache.data;
+    }
+
+    const result = await this.withRetry(
+      () => this.client.get('/v1/eval/latest').then((r) => r.data),
+      maxRetries,
+      'get-latest-eval'
+    );
+
+    if (result) {
+      this.evalCache = { data: result, timestamp: now };
+      return result;
+    }
+
+    return {
+      status: 'unavailable',
+      message: 'No evaluation results available yet.',
+      dataset_split: 'test',
+      total_test_cases: 0,
+      total_claims_evaluated: 0,
+      macro_f1: 0.0,
+      contradiction_precision: 0.0,
+      span_overlap_f1: 0.0,
+      brier_score: 0.0,
+      ece: 0.0,
+      per_verdict_metrics: {},
+      reliability_diagram: [],
+    };
+  }
 }
 
 export const modelClient = new ModelClient();
+
