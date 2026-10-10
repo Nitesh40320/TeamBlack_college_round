@@ -1,0 +1,111 @@
+# docker-compose.yml — Second Opinion
+# Scope note: placed at repo root by explicit user instruction (not inside /docs).
+#
+# Usage:
+#   cp model/.env.example model/.env      # fill in OPENAI_API_KEY, MODEL_MODE
+#   cp backend/.env.example backend/.env  # fill in MONGO_URI, MODEL_URL, PORT
+#   cp frontend/.env.example frontend/.env # fill in VITE_API_URL
+#   docker compose up --build
+
+version: "3.9"
+
+networks:
+  second-opinion-net:
+    driver: bridge
+
+volumes:
+  mongo-data:
+
+services:
+  # ---------------------------------------------------------------------------
+  # MongoDB
+  # ---------------------------------------------------------------------------
+  mongo:
+    image: mongo:7
+    container_name: so-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: second_opinion
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - "27017:27017"   # expose for local Compass / mongosh access
+    networks:
+      - second-opinion-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Model Service  (Python 3.11 / FastAPI)
+  # ---------------------------------------------------------------------------
+  model:
+    build:
+      context: ./model
+      dockerfile: Dockerfile
+    container_name: so-model
+    restart: unless-stopped
+    env_file: ./model/.env
+    environment:
+      PORT: "8000"
+    ports:
+      - "8000:8000"     # exposed for direct testing; remove in prod
+    networks:
+      - second-opinion-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Backend  (Node 20 / Express / TypeScript)
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: so-backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      PORT: "4000"
+      MONGO_URI: "mongodb://mongo:27017/second_opinion"
+      MODEL_URL: "http://model:8000"
+    ports:
+      - "4000:4000"
+    networks:
+      - second-opinion-net
+    depends_on:
+      mongo:
+        condition: service_healthy
+      model:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # Frontend  (React + Vite → served by Nginx in prod)
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: "http://localhost:4000"
+    container_name: so-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"       # Nginx serves the built Vite bundle on port 80
+    networks:
+      - second-opinion-net
+    depends_on:
+      backend:
+        condition: service_healthy

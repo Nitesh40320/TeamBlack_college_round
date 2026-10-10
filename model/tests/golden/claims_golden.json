@@ -1,0 +1,47 @@
+[
+  {
+    "id": "medical_dosage",
+    "question": "What is the standard adult dose of aspirin for fever?",
+    "answer": "Aspirin is commonly used to reduce fever in adults. The standard dose is 1000 mg every 4 hours, not exceeding 4 g per day. It also prevents heart attacks in all adults over 40.",
+    "expected_claim_count_min": 2,
+    "expected_claim_count_max": 4,
+    "expected_claim_types_present": ["numeric", "recommendation"],
+    "notes": "Contains one factual, one numeric, and one recommendation claim."
+  },
+  {
+    "id": "climate_change",
+    "question": "What causes global warming?",
+    "answer": "Global warming is primarily caused by the burning of fossil fuels. Carbon dioxide emissions from coal and oil have increased atmospheric CO2 by 50% since pre-industrial times. Some scientists believe renewable energy is the best solution.",
+    "expected_claim_count_min": 2,
+    "expected_claim_count_max": 4,
+    "expected_claim_types_present": ["causal", "numeric", "opinion"],
+    "notes": "Contains causal, numeric, and opinion (belief) claims."
+  },
+  {
+    "id": "single_sentence",
+    "question": null,
+    "answer": "The Earth orbits the Sun at an average distance of 149.6 million kilometers.",
+    "expected_claim_count_min": 1,
+    "expected_claim_count_max": 2,
+    "expected_claim_types_present": ["numeric"],
+    "notes": "Single well-scoped numeric claim."
+  },
+  {
+    "id": "multi_paragraph",
+    "question": "How does acetaminophen work?",
+    "answer": "Acetaminophen reduces fever by acting on the hypothalamus. It also inhibits prostaglandin synthesis, which reduces pain signals. The drug should not be taken with alcohol because the combination can cause severe liver damage. Some people think acetaminophen is the safest painkiller, though individual responses vary.",
+    "expected_claim_count_min": 3,
+    "expected_claim_count_max": 6,
+    "expected_claim_types_present": ["causal", "recommendation", "opinion"],
+    "notes": "Complex answer; includes causal, recommendation, and opinion."
+  },
+  {
+    "id": "pure_opinion",
+    "question": "Is coffee good for you?",
+    "answer": "Coffee is probably the greatest beverage ever invented. Most people agree it tastes better than tea. It feels like a morning ritual that everyone enjoys.",
+    "expected_claim_count_min": 1,
+    "expected_claim_count_max": 3,
+    "expected_claim_types_present": ["opinion"],
+    "notes": "All claims should be classified as opinion / subjective."
+  }
+]

@@ -1,0 +1,231 @@
+import { AuditResult } from '../types/contract';
+
+export const MOCK_AUDIT_RESULT: AuditResult = {
+  id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  status: 'completed',
+  claims: [
+    {
+      id: 'c0000001-0000-0000-0000-000000000001',
+      text: 'Aspirin is commonly used to reduce fever in adults.',
+      answerSpan: { start: 0, end: 50 },
+      claimType: 'factual',
+      verdict: 'SUPPORTED',
+      explanation: 'The source confirms aspirin is indicated for mild-to-moderate pain and fever.',
+      evidence: [
+        {
+          sourceId: 'src-1',
+          span: { start: 0, end: 92 },
+          text: 'Aspirin (acetylsalicylic acid) is indicated for mild-to-moderate pain and fever.',
+          relation: 'supports',
+          score: 0.97,
+        },
+      ],
+      confidence: {
+        score: 0.96,
+        level: 'high',
+        uncertaintyReasons: [],
+      },
+    },
+    {
+      id: 'c0000001-0000-0000-0000-000000000002',
+      text: 'The standard dose is 1000 mg every 4 hours, not exceeding 4 g per day.',
+      answerSpan: { start: 51, end: 121 },
+      claimType: 'numeric',
+      verdict: 'CONTRADICTED',
+      errorCategory: 'NUMERIC_MISMATCH',
+      errorSpan: { start: 72, end: 79 },
+      explanation: 'The source states 300-900 mg per dose; 1000 mg exceeds the documented maximum single dose.',
+      evidence: [
+        {
+          sourceId: 'src-1',
+          span: { start: 93, end: 174 },
+          text: 'The recommended adult dose for antipyresis is 300-900 mg every 4-6 hours, maximum 4 g daily.',
+          relation: 'contradicts',
+          score: 0.99,
+        },
+      ],
+      confidence: {
+        score: 0.94,
+        level: 'high',
+        uncertaintyReasons: [],
+      },
+    },
+    {
+      id: 'c0000001-0000-0000-0000-000000000003',
+      text: 'It also prevents heart attacks in all adults over 40.',
+      answerSpan: { start: 123, end: 175 },
+      claimType: 'recommendation',
+      verdict: 'CONTRADICTED',
+      errorCategory: 'CONTRADICTS_SOURCE',
+      errorSpan: { start: 123, end: 175 },
+      explanation: 'The source explicitly states aspirin is NOT recommended as routine cardiovascular prophylaxis in low-risk adults.',
+      evidence: [
+        {
+          sourceId: 'src-1',
+          span: { start: 175, end: 298 },
+          text: 'Aspirin is not recommended as routine prophylaxis for cardiovascular events in low-risk adults due to bleeding risk.',
+          relation: 'contradicts',
+          score: 0.98,
+        },
+      ],
+      confidence: {
+        score: 0.98,
+        level: 'high',
+        uncertaintyReasons: [],
+      },
+    },
+    {
+      id: 'c0000001-0000-0000-0000-000000000004',
+      text: 'Aspirin was first synthesized by ancient Egyptian physicians in 2000 BC.',
+      answerSpan: { start: 176, end: 246 },
+      claimType: 'factual',
+      verdict: 'UNSUPPORTED',
+      errorCategory: 'UNSUPPORTED_CLAIM',
+      errorSpan: { start: 176, end: 246 },
+      explanation: 'The provided source documentation makes no mention of ancient Egyptian synthesis.',
+      evidence: [],
+      confidence: {
+        score: 0.88,
+        level: 'medium',
+        uncertaintyReasons: ['Source context does not cover ancient history.'],
+      },
+    },
+    {
+      id: 'c0000001-0000-0000-0000-000000000005',
+      text: 'Patient outcomes improve by exactly 87.5% when taking aspirin with green tea.',
+      answerSpan: { start: 247, end: 324 },
+      claimType: 'numeric',
+      verdict: 'UNVERIFIABLE',
+      errorCategory: 'HALLUCINATED_FACT',
+      errorSpan: { start: 285, end: 324 },
+      explanation: 'Specific synergy claim with green tea cannot be verified against clinical sources.',
+      evidence: [],
+      confidence: {
+        score: 0.90,
+        level: 'high',
+        uncertaintyReasons: ['Unsubstantiated quantitative outcome claim.'],
+      },
+    },
+    {
+      id: 'c0000001-0000-0000-0000-000000000006',
+      text: 'Taking antipyretics usually helps quickly.',
+      answerSpan: { start: 325, end: 366 },
+      claimType: 'opinion',
+      verdict: 'AMBIGUOUS',
+      errorCategory: 'AMBIGUOUS_STATEMENT',
+      errorSpan: { start: 345, end: 366 },
+      explanation: 'The terms "usually" and "quickly" lack precise clinical parameters.',
+      evidence: [],
+      confidence: {
+        score: 0.75,
+        level: 'medium',
+        uncertaintyReasons: ['Subjective and vague phrasing.'],
+      },
+    },
+  ],
+  reasoningIssues: [
+    {
+      id: 'r0000001-0000-0000-0000-000000000001',
+      claimIds: [
+        'c0000001-0000-0000-0000-000000000002',
+        'c0000001-0000-0000-0000-000000000003',
+      ],
+      answerSpan: { start: 51, end: 175 },
+      type: 'NON_SEQUITUR',
+      explanation: 'Recommending higher dosage while expanding indication to low-risk prophylaxis violates evidence-based logical sequencing.',
+      confidence: {
+        score: 0.92,
+        level: 'high',
+        uncertaintyReasons: [],
+      },
+    },
+  ],
+  safetyFlags: [
+    {
+      id: 'sf000001-0000-0000-0000-000000000001',
+      claimId: 'c0000001-0000-0000-0000-000000000003',
+      answerSpan: { start: 123, end: 175 },
+      domain: 'medical',
+      severity: 'high',
+      explanation: 'Blanket cardiovascular prophylaxis recommendation contradicts clinical guidance and could cause patient harm.',
+      recommendation: 'Advise users to consult a cardiologist or GP before starting aspirin for heart attack prevention.',
+    },
+  ],
+  overall: {
+    score: 28,
+    grade: 'D',
+    summary: 'The answer contains one correct factual claim but multiple significant errors including a dosage mismatch and a contradicted cardiovascular recommendation. Urgent medical safety concern flagged.',
+    counts: {
+      SUPPORTED: 1,
+      CONTRADICTED: 2,
+      UNSUPPORTED: 1,
+      UNVERIFIABLE: 1,
+      AMBIGUOUS: 1,
+    },
+  },
+  meta: {
+    timings: {
+      totalMs: 4321,
+      chunkingMs: 45,
+      extractionMs: 980,
+      verificationMs: 2810,
+      analysisMs: 486,
+    },
+    modelVersions: {
+      embedder: 'text-embedding-3-small@2024-02',
+      verifier: 'gpt-4o-mini@2024-07-18',
+      analyzer: 'gpt-4o@2024-08-06',
+    },
+    mode: 'mock',
+  },
+  createdAt: '2024-09-01T12:00:00.000Z',
+  updatedAt: '2024-09-01T12:00:04.321Z',
+  sources: [
+    {
+      id: 'src-1',
+      title: 'BNF - Aspirin Monograph (2024 ed.)',
+      text: 'Aspirin (acetylsalicylic acid) is indicated for mild-to-moderate pain and fever. The recommended adult dose for antipyresis is 300-900 mg every 4-6 hours, maximum 4 g daily. Aspirin is not recommended as routine prophylaxis for cardiovascular events in low-risk adults due to bleeding risk.',
+    },
+  ],
+  answer:
+    'Aspirin is commonly used to reduce fever in adults. The standard dose is 1000 mg every 4 hours, not exceeding 4 g per day. It also prevents heart attacks in all adults over 40. Aspirin was first synthesized by ancient Egyptian physicians in 2000 BC. Patient outcomes improve by exactly 87.5% when taking aspirin with green tea. Taking antipyretics usually helps quickly.',
+  question: 'What is the standard adult dose of aspirin for fever?',
+};
+
+export const MOCK_AUDITS_HISTORY: AuditResult[] = [
+  MOCK_AUDIT_RESULT,
+  {
+    ...MOCK_AUDIT_RESULT,
+    id: 'b2c3d4e5-f6a7-8901-bcde-f23456789012',
+    createdAt: '2024-09-02T15:30:00.000Z',
+    overall: {
+      score: 88,
+      grade: 'B',
+      summary: 'High accuracy audit result with minor unsupported contextual details.',
+      counts: {
+        SUPPORTED: 4,
+        CONTRADICTED: 0,
+        UNSUPPORTED: 1,
+        UNVERIFIABLE: 0,
+        AMBIGUOUS: 0,
+      },
+    },
+  },
+  {
+    ...MOCK_AUDIT_RESULT,
+    id: 'c3d4e5f6-a7b8-9012-cdef-345678901234',
+    createdAt: '2024-09-03T09:15:00.000Z',
+    overall: {
+      score: 95,
+      grade: 'A',
+      summary: 'Excellent audit result. All extracted claims fully supported by source documents.',
+      counts: {
+        SUPPORTED: 5,
+        CONTRADICTED: 0,
+        UNSUPPORTED: 0,
+        UNVERIFIABLE: 0,
+        AMBIGUOUS: 0,
+      },
+    },
+  },
+];
