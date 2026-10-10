@@ -1,0 +1,11 @@
+{
+  "question": "Should I invest in tech index funds?",
+  "answer": "Tech index funds returned 12% last year. Therefore, they offer a 100% guaranteed return with zero risk of loss.",
+  "sources": [
+    {
+      "id": "src-fin-1",
+      "title": "Financial Market Review 2024",
+      "text": "Technology index funds recorded a 12% yield in 2024. All market investments carry inherent risk of capital loss."
+    }
+  ]
+}

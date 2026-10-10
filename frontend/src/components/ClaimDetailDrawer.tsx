@@ -14,12 +14,16 @@ import {
   Layers,
 } from 'lucide-react';
 
+import { ConfidenceMeter } from './ConfidenceMeter';
+import { FeedbackButtons } from './FeedbackButtons';
+
 interface ClaimDetailDrawerProps {
   claim: Claim | null;
   isOpen: boolean;
   onClose: () => void;
   sources?: Source[];
   onViewInSource: (sourceId: string, span: SourceSpan, label?: string) => void;
+  auditId?: string;
 }
 
 export const ClaimDetailDrawer: React.FC<ClaimDetailDrawerProps> = ({
@@ -28,6 +32,7 @@ export const ClaimDetailDrawer: React.FC<ClaimDetailDrawerProps> = ({
   onClose,
   sources = [],
   onViewInSource,
+  auditId = 'audit-active',
 }) => {
   if (!isOpen || !claim) return null;
 
@@ -44,7 +49,6 @@ export const ClaimDetailDrawer: React.FC<ClaimDetailDrawerProps> = ({
 
   // Highlight matched span or target terms within evidence passage text
   const renderHighlightedPassage = (text: string, span: SourceSpan) => {
-    // If text exists, display passage with subtle inline highlight on key phrases or whole text
     return (
       <p className="text-xs text-slate-200 font-sans leading-relaxed bg-slate-950/80 p-3 rounded-lg border border-white/5 relative">
         <span className="bg-cyan-500/20 text-cyan-200 border-b border-cyan-400/60 font-medium px-1 py-0.5 rounded">
@@ -84,6 +88,11 @@ export const ClaimDetailDrawer: React.FC<ClaimDetailDrawerProps> = ({
 
           <div className="flex items-center gap-3">
             <VerdictBadge verdict={claim.verdict} size="md" />
+            <FeedbackButtons
+              auditId={auditId}
+              findingId={claim.id}
+              findingType="claim"
+            />
             <button
               onClick={onClose}
               className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-100 flex items-center justify-center transition-colors border border-white/10"
@@ -98,9 +107,12 @@ export const ClaimDetailDrawer: React.FC<ClaimDetailDrawerProps> = ({
         <div className="p-6 space-y-6 flex-1">
           {/* Main Extracted Claim Card */}
           <div className="p-5 rounded-2xl bg-slate-950/80 border border-white/10 space-y-3 shadow-inner">
-            <span className="text-[11px] font-mono uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> Extracted Claim Text
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> Extracted Claim Text
+              </span>
+              <ConfidenceMeter confidence={claim.confidence} />
+            </div>
             <blockquote className="text-base font-semibold text-slate-100 italic border-l-2 border-cyan-500 pl-4 py-1 leading-snug">
               "{claim.text}"
             </blockquote>
@@ -109,9 +121,6 @@ export const ClaimDetailDrawer: React.FC<ClaimDetailDrawerProps> = ({
             <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
               <span className="px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 text-xs font-mono">
                 Type: {claim.claimType}
-              </span>
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-xs font-mono">
-                Confidence: {Math.round(claim.confidence.score * 100)}% ({claim.confidence.level})
               </span>
               {claim.errorCategory && (
                 <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-300 border border-rose-500/30 text-xs font-mono font-bold">

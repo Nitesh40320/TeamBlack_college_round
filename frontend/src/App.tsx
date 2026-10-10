@@ -5,6 +5,7 @@ import { Layout } from './components/Layout';
 import { NewAuditPage } from './pages/NewAuditPage';
 import { AuditDetailPage } from './pages/AuditDetailPage';
 import { HistoryPage } from './pages/HistoryPage';
+import { EvaluationPage } from './pages/EvaluationPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,6 +26,7 @@ export const App: React.FC = () => {
             <Route path="new" element={<NewAuditPage />} />
             <Route path="audit/:id" element={<AuditDetailPage />} />
             <Route path="history" element={<HistoryPage />} />
+            <Route path="evaluation" element={<EvaluationPage />} />
             <Route path="*" element={<Navigate to="/new" replace />} />
           </Route>
         </Routes>
@@ -32,5 +34,6 @@ export const App: React.FC = () => {
     </QueryClientProvider>
   );
 };
+
 
 export default App;

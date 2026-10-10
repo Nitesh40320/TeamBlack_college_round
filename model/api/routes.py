@@ -1,10 +1,12 @@
+import asyncio
 import json
 import os
 import time
 from typing import List
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from model.config import settings
+from model.logging_config import logger
 from model.llm import LLMClient
 from model.pipeline import (
     get_mock_audit_result,
@@ -12,6 +14,7 @@ from model.pipeline import (
     analyze_reasoning,
     analyze_safety,
     compute_overall_assessment,
+    audit_cache,
 )
 from model.pipeline.chunker import chunk_source
 from model.pipeline.claim_extractor import extract_claims
@@ -29,6 +32,7 @@ from model.schemas.pipeline import (
 from model.schemas.primitives import Span
 
 router = APIRouter()
+AUDIT_SEMAPHORE = asyncio.Semaphore(settings.MAX_CONCURRENT_AUDITS)
 
 
 @router.get("/health", status_code=200)
@@ -113,14 +117,39 @@ async def verify_endpoint(request: VerifyRequest):
     return verified_claim
 
 
-@router.post("/v1/audit", response_model=AuditResult, status_code=200)
-async def run_audit(request: AuditRequest):
+async def _execute_audit_pipeline(request: AuditRequest) -> AuditResult:
+    # 1. Input size validation caps
+    if len(request.answer) > settings.MAX_ANSWER_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Answer text length ({len(request.answer)}) exceeds maximum allowed limit of {settings.MAX_ANSWER_LENGTH} characters.",
+        )
+
+    if len(request.sources) > settings.MAX_SOURCES_COUNT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Number of sources ({len(request.sources)}) exceeds maximum allowed limit of {settings.MAX_SOURCES_COUNT}.",
+        )
+
+    total_source_len = sum(len(s.text) for s in request.sources)
+    if total_source_len > settings.MAX_SOURCE_TEXT_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Total source text length ({total_source_len}) exceeds maximum allowed limit of {settings.MAX_SOURCE_TEXT_LENGTH} characters.",
+        )
+
+    # 2. Cache lookup
+    cached = audit_cache.get(request)
+    if cached is not None:
+        logger.info("Serving audit result from in-memory cache")
+        return cached
+
     start_time = time.time()
+    degraded_flags: List[str] = []
     llm_client = LLMClient()
 
     if settings.MODEL_MODE == "mock":
         res = get_mock_audit_result()
-        # Enrich mock result with dynamic reasoning and safety analysis over request input
         dynamic_reasoning = analyze_reasoning(
             request.answer, res.claims, request.sources, llm_client
         )
@@ -129,7 +158,6 @@ async def run_audit(request: AuditRequest):
         )
 
         if dynamic_reasoning:
-            # Avoid duplicate issue IDs
             existing_ids = {r.id for r in res.reasoningIssues}
             for r in dynamic_reasoning:
                 if r.id not in existing_ids:
@@ -141,19 +169,35 @@ async def run_audit(request: AuditRequest):
                 if s.id not in existing_sids:
                     res.safetyFlags.append(s)
 
-        # Update overall assessment with full evaluation logic
         res.overall = compute_overall_assessment(
             res.claims, res.reasoningIssues, res.safetyFlags
         )
+        audit_cache.set(request, res)
         return res
 
-    # Live execution pipeline
-    extracted = await extract_claims(
-        answer=request.answer,
-        question=request.question,
-        llm_client=llm_client,
-    )
+    # 3. Live Pipeline Stage Timings
+    # Stage A: Chunking
+    chunk_start = time.time()
+    for src in request.sources:
+        _ = chunk_source(src.text)
+    chunking_ms = (time.time() - chunk_start) * 1000.0
 
+    # Stage B: Extraction
+    extract_start = time.time()
+    try:
+        extracted = await extract_claims(
+            answer=request.answer,
+            question=request.question,
+            llm_client=llm_client,
+        )
+    except Exception as exc:
+        logger.warning("Claim extraction failed or LLM down: %s", exc)
+        degraded_flags.append("LLM_DOWN_NLI_ONLY")
+        extracted = []
+    extraction_ms = (time.time() - extract_start) * 1000.0
+
+    # Stage C: Verification
+    verify_start = time.time()
     claims: List[Claim] = []
     for ext in extracted:
         claim_out = ExtractedClaimOut(
@@ -163,26 +207,34 @@ async def run_audit(request: AuditRequest):
             claimType=ext.claimType,
             is_opinion=ext.is_opinion,
         )
-        v_claim = await verify_claim(
-            claim_input=claim_out,
-            sources=request.sources,
-            llm_client=llm_client,
-            answer_text=request.answer,
-        )
+        try:
+            v_claim = await verify_claim(
+                claim_input=claim_out,
+                sources=request.sources,
+                llm_client=llm_client,
+                answer_text=request.answer,
+            )
+        except Exception as exc:
+            logger.error("Verification failed for claim %s: %s", ext.id, exc)
+            continue
         claims.append(v_claim)
+    verification_ms = (time.time() - verify_start) * 1000.0
 
+    # Stage D: Analysis (Reasoning & Safety)
+    analysis_start = time.time()
     reasoning_issues = analyze_reasoning(
         request.answer, claims, request.sources, llm_client
     )
     safety_flags = analyze_safety(
         request.answer, claims, request.sources, llm_client
     )
+    analysis_ms = (time.time() - analysis_start) * 1000.0
 
     overall = compute_overall_assessment(claims, reasoning_issues, safety_flags)
     total_ms = (time.time() - start_time) * 1000.0
 
-    return AuditResult(
-        id=f"audit-{int(start_time)}",
+    audit_res = AuditResult(
+        id=f"audit-{int(start_time * 1000)}",
         status="completed",
         claims=claims,
         reasoningIssues=reasoning_issues,
@@ -191,19 +243,50 @@ async def run_audit(request: AuditRequest):
         meta=Meta(
             timings=Timings(
                 totalMs=round(total_ms, 2),
-                chunkingMs=10.0,
-                extractionMs=50.0,
-                verificationMs=round(total_ms - 60.0, 2),
-                analysisMs=20.0,
+                chunkingMs=round(chunking_ms, 2),
+                extractionMs=round(extraction_ms, 2),
+                verificationMs=round(verification_ms, 2),
+                analysisMs=round(analysis_ms, 2),
             ),
             modelVersions=ModelVersions(
                 embedder=settings.EMBEDDING_MODEL_NAME,
                 verifier=settings.NLI_MODEL_NAME,
-                analyzer=settings.LLM_MODEL_NAME,
+                analyzer=settings.LLM_MODEL_NAME or settings.LLM_PROVIDER,
             ),
             mode=settings.MODEL_MODE,  # type: ignore
+            degradedFlags=list(set(degraded_flags)),
         ),
         createdAt=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         updatedAt=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     )
+
+    logger.info(
+        "Audit completed in %.2fms [chunking=%.2fms, extraction=%.2fms, verification=%.2fms, analysis=%.2fms]",
+        total_ms,
+        chunking_ms,
+        extraction_ms,
+        verification_ms,
+        analysis_ms,
+    )
+
+    audit_cache.set(request, audit_res)
+    return audit_res
+
+
+@router.post("/v1/audit", response_model=AuditResult, status_code=200)
+async def run_audit(request: AuditRequest):
+    try:
+        async with AUDIT_SEMAPHORE:
+            return await asyncio.wait_for(
+                _execute_audit_pipeline(request),
+                timeout=settings.AUDIT_TIMEOUT_SECONDS,
+            )
+    except asyncio.TimeoutError:
+        logger.error(
+            "Audit request timed out after %s seconds", settings.AUDIT_TIMEOUT_SECONDS
+        )
+        raise HTTPException(
+            status_code=504,
+            detail=f"Audit execution timed out after {settings.AUDIT_TIMEOUT_SECONDS} seconds.",
+        )
 

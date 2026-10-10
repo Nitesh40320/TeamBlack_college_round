@@ -10,6 +10,9 @@ import { SourceViewerPanel } from '../components/SourceViewerPanel';
 import { AnnotatedAnswerView } from '../components/AnnotatedAnswerView';
 import { SafetyBanner } from '../components/SafetyBanner';
 import { ReasoningGraphView } from '../components/ReasoningGraphView';
+import { OverallAssessmentCard } from '../components/OverallAssessmentCard';
+import { ConfidenceMeter } from '../components/ConfidenceMeter';
+import { FeedbackButtons } from '../components/FeedbackButtons';
 import { getAuditById, rerunAudit } from '../api/apiClient';
 import { Verdict, ClaimType, Claim, SourceSpan, Source, Span } from '../types/contract';
 import {
@@ -28,6 +31,8 @@ import {
   Split,
   GitCommit,
   CheckCircle2,
+  AlertOctagon,
+  HelpCircle,
 } from 'lucide-react';
 
 export const AuditDetailPage: React.FC = () => {
@@ -97,6 +102,20 @@ export const AuditDetailPage: React.FC = () => {
     }
   };
 
+  const handleSelectFindingById = (findingId: string) => {
+    if (!audit || !audit.claims) return;
+    const found = audit.claims.find((c) => c.id === findingId);
+    if (found) {
+      handleOpenClaimDetail(found);
+    } else {
+      // If reasoning or safety issue, scroll down to target section
+      const el = document.getElementById(`finding-${findingId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  };
+
   // Close Claim Detail Drawer
   const handleCloseDrawer = () => {
     setIsDrawerOpen(false);
@@ -111,7 +130,6 @@ export const AuditDetailPage: React.FC = () => {
     setActiveSourceId(sourceId);
     setHighlightSpan({ start: span.start, end: span.end, label });
 
-    // Scroll to Source Viewer section on page
     const el = document.getElementById('source-viewer-section');
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -165,7 +183,6 @@ export const AuditDetailPage: React.FC = () => {
     );
   }
 
-  // Derive sources from audit or fallback mock sources
   const auditSources: Source[] = audit.sources || [
     {
       id: 'src-1',
@@ -174,23 +191,10 @@ export const AuditDetailPage: React.FC = () => {
     },
   ];
 
-  // Calculate counts
   const totalClaims = audit.claims ? audit.claims.length : 0;
   const reasoningCount = audit.reasoningIssues ? audit.reasoningIssues.length : 0;
   const safetyCount = audit.safetyFlags ? audit.safetyFlags.length : 0;
-
-  const verifiedClaims = audit.claims
-    ? audit.claims.filter((c) => c.verdict).length
-    : 0;
-
-  // Grade color map
-  const gradeColors: Record<string, string> = {
-    A: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
-    B: 'text-teal-400 border-teal-500/30 bg-teal-500/10',
-    C: 'text-amber-400 border-amber-500/30 bg-amber-500/10',
-    D: 'text-orange-400 border-orange-500/30 bg-orange-500/10',
-    F: 'text-rose-400 border-rose-500/30 bg-rose-500/10',
-  };
+  const verifiedClaims = audit.claims ? audit.claims.filter((c) => c.verdict).length : 0;
 
   const claimTypeBadgeStyles: Record<ClaimType, string> = {
     factual: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
@@ -200,7 +204,6 @@ export const AuditDetailPage: React.FC = () => {
     opinion: 'bg-purple-500/20 text-purple-300 border-purple-500/40 font-bold',
   };
 
-  // Severity Weight Mapping for Sorting
   const severityRank: Record<Verdict, number> = {
     CONTRADICTED: 1,
     UNSUPPORTED: 2,
@@ -209,7 +212,6 @@ export const AuditDetailPage: React.FC = () => {
     SUPPORTED: 5,
   };
 
-  // Verdict Counts for Filter Chips
   const verdictCounts: Record<Verdict | 'ALL', number> = {
     ALL: totalClaims,
     SUPPORTED: audit.overall?.counts?.SUPPORTED || 0,
@@ -219,7 +221,6 @@ export const AuditDetailPage: React.FC = () => {
     AMBIGUOUS: audit.overall?.counts?.AMBIGUOUS || 0,
   };
 
-  // Filter & Sort Claims List
   const filteredClaims = (audit.claims || []).filter((claim) => {
     if (selectedVerdict !== 'ALL' && claim.verdict !== selectedVerdict) {
       return false;
@@ -233,7 +234,6 @@ export const AuditDetailPage: React.FC = () => {
     return true;
   });
 
-  // Sort Claims
   const sortedClaims = [...filteredClaims].sort((a, b) => {
     if (sortOption === 'severity-desc') {
       return (severityRank[a.verdict] || 99) - (severityRank[b.verdict] || 99);
@@ -246,6 +246,117 @@ export const AuditDetailPage: React.FC = () => {
     }
     return 0;
   });
+
+  // Categorize sorted claims into two distinct groups:
+  // 1. Demonstrably Wrong (CONTRADICTED / HALLUCINATED)
+  // 2. Unverified & Ambiguous (UNSUPPORTED / UNVERIFIABLE / AMBIGUOUS)
+  // 3. Supported (SUPPORTED)
+  const demonstrablyWrongClaims = sortedClaims.filter(
+    (c) => c.verdict === 'CONTRADICTED' || c.errorCategory === 'HALLUCINATED_FACT' || c.errorCategory === 'NUMERIC_MISMATCH' || c.errorCategory === 'ENTITY_MISMATCH'
+  );
+
+  const unverifiedClaims = sortedClaims.filter(
+    (c) =>
+      c.verdict !== 'CONTRADICTED' &&
+      c.verdict !== 'SUPPORTED' &&
+      c.errorCategory !== 'HALLUCINATED_FACT' &&
+      c.errorCategory !== 'NUMERIC_MISMATCH' &&
+      c.errorCategory !== 'ENTITY_MISMATCH'
+  );
+
+  const supportedClaims = sortedClaims.filter((c) => c.verdict === 'SUPPORTED');
+
+  const renderClaimCard = (claim: Claim, idx: number) => (
+    <Card
+      key={claim.id}
+      id={`finding-${claim.id}`}
+      className="hover:border-cyan-500/40 transition-all cursor-pointer group"
+    >
+      <div className="space-y-4">
+        {/* Top Claim Card Header Row */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3 flex-1">
+            <span className="w-7 h-7 rounded-full bg-slate-800 text-cyan-400 text-xs font-mono font-bold flex items-center justify-center shrink-0 mt-0.5 border border-cyan-500/30 group-hover:bg-cyan-500 group-hover:text-slate-950 transition-colors">
+              {idx + 1}
+            </span>
+            <div className="space-y-2 flex-1">
+              <p
+                onClick={() => handleOpenClaimDetail(claim)}
+                className="text-base font-semibold text-slate-100 leading-snug group-hover:text-cyan-200 transition-colors"
+              >
+                "{claim.text}"
+              </p>
+
+              {/* Metadata Row */}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span
+                  className={`px-2.5 py-0.5 rounded-full border text-xs font-mono uppercase tracking-wider ${
+                    claimTypeBadgeStyles[claim.claimType] ||
+                    'bg-slate-800 text-slate-300 border-white/10'
+                  }`}
+                >
+                  Type: {claim.claimType}
+                </span>
+
+                {claim.claimType === 'opinion' && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs font-semibold flex items-center gap-1 shadow-sm">
+                    <MessageSquareQuote className="w-3.5 h-3.5 text-purple-400" />
+                    Opinion / Subjective
+                  </span>
+                )}
+
+                <span className="px-2.5 py-0.5 rounded-full bg-slate-900 border border-cyan-500/20 text-xs font-mono text-cyan-300 flex items-center gap-1">
+                  <BookOpen className="w-3 h-3 text-cyan-400" />
+                  {claim.evidence?.length || 0} Evidence Passages
+                </span>
+
+                <span className="px-2 py-0.5 rounded bg-slate-900 border border-white/5 text-xs font-mono text-slate-400 flex items-center gap-1">
+                  <Hash className="w-3 h-3 text-slate-500" />
+                  Span: [{claim.answerSpan.start}, {claim.answerSpan.end}]
+                </span>
+
+                {claim.errorCategory && (
+                  <span className="px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-xs font-mono font-bold text-rose-300">
+                    Error: {claim.errorCategory}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <VerdictBadge verdict={claim.verdict} size="lg" />
+            <ConfidenceMeter confidence={claim.confidence} />
+          </div>
+        </div>
+
+        {/* Audit Rationale Snippet */}
+        <div className="text-xs text-slate-300 bg-slate-950/70 p-3 rounded-xl border border-white/5 space-y-1">
+          <span className="font-semibold text-cyan-400 uppercase tracking-wider text-[10px]">
+            Audit Rationale:
+          </span>
+          <p className="text-slate-200">{claim.explanation}</p>
+        </div>
+
+        {/* Quick Action & Feedback Footer */}
+        <div className="flex items-center justify-between text-xs pt-1 border-t border-white/5 text-slate-400">
+          <FeedbackButtons
+            auditId={audit.id}
+            findingId={claim.id}
+            findingType="claim"
+          />
+
+          <button
+            type="button"
+            onClick={() => handleOpenClaimDetail(claim)}
+            className="font-semibold flex items-center gap-1 text-cyan-400 hover:text-cyan-300 transition-colors"
+          >
+            Inspect Claim & Evidence <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-16 animate-fadeIn">
@@ -267,7 +378,7 @@ export const AuditDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* REQUIREMENT 1: Pipeline Status Stepper */}
+      {/* Stepper Pipeline Status */}
       <PipelineStepper
         status={audit.status}
         totalClaims={totalClaims}
@@ -277,78 +388,22 @@ export const AuditDetailPage: React.FC = () => {
         isRerunning={rerunMutation.isPending}
       />
 
-      {/* REQUIREMENT 1 (Safety Banner Prominent Display) */}
+      {/* Prominent Safety Banner */}
       <SafetyBanner
         safetyFlags={audit.safetyFlags}
         onSelectSafetySpan={(span) => setSelectedSpan(span)}
       />
 
-      {/* Top Header Summary Card Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-2">
-          <div className="flex items-start justify-between">
-            <div>
-              <span className="text-xs font-mono uppercase tracking-wider text-cyan-400">
-                Audit Report #{audit.id.slice(0, 8)}
-              </span>
-              <h1 className="text-2xl font-bold text-slate-100 mt-1">
-                Fact Verification Analysis
-              </h1>
-              <p className="text-sm text-slate-300 mt-3 leading-relaxed">
-                {audit.overall?.summary || 'Audit evaluation summary.'}
-              </p>
-            </div>
-            {audit.overall?.grade && (
-              <div
-                className={`w-16 h-16 rounded-2xl border flex flex-col items-center justify-center shrink-0 shadow-lg ${
-                  gradeColors[audit.overall.grade] || gradeColors.F
-                }`}
-              >
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                  Grade
-                </span>
-                <span className="text-2xl font-extrabold">
-                  {audit.overall.grade}
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-xs text-slate-400 font-mono">
-            <div className="flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Total: {audit.meta?.timings?.totalMs || 0}ms</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-              <span>{audit.meta?.modelVersions?.verifier || 'Verifier Model'}</span>
-            </div>
-          </div>
-        </Card>
-
-        {/* Verdict Breakdown Card */}
-        <Card title="Verdict Breakdown">
-          <div className="space-y-2">
-            {(['SUPPORTED', 'CONTRADICTED', 'UNSUPPORTED', 'UNVERIFIABLE', 'AMBIGUOUS'] as Verdict[]).map(
-              (v) => {
-                const count = audit.overall?.counts?.[v] || 0;
-                return (
-                  <div
-                    key={v}
-                    onClick={() => setSelectedVerdict(v)}
-                    className="flex items-center justify-between p-2 rounded-xl bg-slate-950/40 border border-white/5 hover:border-cyan-500/30 transition-all cursor-pointer"
-                  >
-                    <VerdictBadge verdict={v} size="sm" />
-                    <span className="text-sm font-mono font-bold text-slate-200">
-                      {count}
-                    </span>
-                  </div>
-                );
-              }
-            )}
-          </div>
-        </Card>
-      </div>
+      {/* REQUIREMENT 2: Overall Assessment Card */}
+      {audit.overall && (
+        <OverallAssessmentCard
+          overall={audit.overall}
+          claims={audit.claims || []}
+          reasoningIssues={audit.reasoningIssues || []}
+          safetyFlags={audit.safetyFlags || []}
+          onSelectFinding={handleSelectFindingById}
+        />
+      )}
 
       {/* Annotated AI Answer & Source Verification Split View */}
       {audit.answer && (
@@ -463,11 +518,10 @@ export const AuditDetailPage: React.FC = () => {
 
         {/* 1. Claims Tab */}
         {activeTab === 'claims' && (
-          <div className="space-y-4 animate-fadeIn">
+          <div className="space-y-6 animate-fadeIn">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                <Layers className="w-5 h-5 text-cyan-400" /> Extracted Claims (
-                {totalClaims})
+                <Layers className="w-5 h-5 text-cyan-400" /> Extracted Claims ({totalClaims})
               </h2>
               <span className="text-xs text-slate-400 font-mono">
                 Showing {sortedClaims.length} of {totalClaims} claims
@@ -484,7 +538,7 @@ export const AuditDetailPage: React.FC = () => {
               onSearchQueryChange={setSearchQuery}
             />
 
-            {/* Claims Cards */}
+            {/* REQUIREMENT 3: Grouped Sections ("Demonstrably Wrong" vs "Can't Verify" vs "Supported") */}
             {sortedClaims.length === 0 ? (
               <Card>
                 <div className="text-center py-10 space-y-2 text-slate-400">
@@ -502,89 +556,72 @@ export const AuditDetailPage: React.FC = () => {
                 </div>
               </Card>
             ) : (
-              <div className="space-y-4">
-                {sortedClaims.map((claim, idx) => (
-                  <Card
-                    key={claim.id}
-                    className="hover:border-cyan-500/40 transition-all cursor-pointer group"
-                  >
-                    <div
-                      className="space-y-4"
-                      onClick={() => handleOpenClaimDetail(claim)}
-                    >
-                      {/* Top Claim Card Header Row */}
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-start gap-3 flex-1">
-                          <span className="w-7 h-7 rounded-full bg-slate-800 text-cyan-400 text-xs font-mono font-bold flex items-center justify-center shrink-0 mt-0.5 border border-cyan-500/30 group-hover:bg-cyan-500 group-hover:text-slate-950 transition-colors">
-                            {idx + 1}
-                          </span>
-                          <div className="space-y-2 flex-1">
-                            <p className="text-base font-semibold text-slate-100 leading-snug group-hover:text-cyan-200 transition-colors">
-                              "{claim.text}"
-                            </p>
-
-                            {/* Metadata Row */}
-                            <div className="flex flex-wrap items-center gap-2 pt-1">
-                              <span
-                                className={`px-2.5 py-0.5 rounded-full border text-xs font-mono uppercase tracking-wider ${
-                                  claimTypeBadgeStyles[claim.claimType] ||
-                                  'bg-slate-800 text-slate-300 border-white/10'
-                                }`}
-                              >
-                                Type: {claim.claimType}
-                              </span>
-
-                              {claim.claimType === 'opinion' && (
-                                <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs font-semibold flex items-center gap-1 shadow-sm">
-                                  <MessageSquareQuote className="w-3.5 h-3.5 text-purple-400" />
-                                  Opinion / Subjective
-                                </span>
-                              )}
-
-                              <span className="px-2.5 py-0.5 rounded-full bg-slate-900 border border-cyan-500/20 text-xs font-mono text-cyan-300 flex items-center gap-1">
-                                <BookOpen className="w-3 h-3 text-cyan-400" />
-                                {claim.evidence?.length || 0} Evidence Passages
-                              </span>
-
-                              <span className="px-2 py-0.5 rounded bg-slate-900 border border-white/5 text-xs font-mono text-slate-400 flex items-center gap-1">
-                                <Hash className="w-3 h-3 text-slate-500" />
-                                Span: [{claim.answerSpan.start}, {claim.answerSpan.end}]
-                              </span>
-
-                              {claim.errorCategory && (
-                                <span className="px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-xs font-mono font-bold text-rose-300">
-                                  Error: {claim.errorCategory}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="shrink-0">
-                          <VerdictBadge verdict={claim.verdict} size="lg" />
-                        </div>
+              <div className="space-y-8">
+                {/* Section 1: Demonstrably Wrong */}
+                {demonstrablyWrongClaims.length > 0 && (
+                  <div className="space-y-4 p-5 rounded-2xl bg-rose-950/20 border border-rose-500/20">
+                    <div className="flex items-center justify-between border-b border-rose-500/20 pb-3">
+                      <div className="flex items-center gap-2">
+                        <AlertOctagon className="w-5 h-5 text-rose-400" />
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-rose-300">
+                          Demonstrably Wrong / Contradicted ({demonstrablyWrongClaims.length})
+                        </h3>
                       </div>
-
-                      {/* Audit Rationale Snippet */}
-                      <div className="text-xs text-slate-300 bg-slate-950/70 p-3 rounded-xl border border-white/5 space-y-1">
-                        <span className="font-semibold text-cyan-400 uppercase tracking-wider text-[10px]">
-                          Audit Rationale:
-                        </span>
-                        <p className="text-slate-200 line-clamp-2">{claim.explanation}</p>
-                      </div>
-
-                      {/* Quick Action Footer */}
-                      <div className="flex items-center justify-between text-xs pt-1 border-t border-white/5 text-slate-400 group-hover:text-cyan-300">
-                        <span className="font-mono">
-                          Confidence: {Math.round((claim.confidence?.score || 0) * 100)}%
-                        </span>
-                        <span className="font-semibold flex items-center gap-1">
-                          Inspect Claim & Evidence <ExternalLink className="w-3.5 h-3.5" />
-                        </span>
-                      </div>
+                      <span className="text-xs text-rose-400/80 font-mono">
+                        Factual Contradictions & Mismatches
+                      </span>
                     </div>
-                  </Card>
-                ))}
+                    <div className="space-y-4">
+                      {demonstrablyWrongClaims.map((claim, idx) =>
+                        renderClaimCard(claim, idx)
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 2: Can't Verify / Ambiguous */}
+                {unverifiedClaims.length > 0 && (
+                  <div className="space-y-4 p-5 rounded-2xl bg-amber-950/20 border border-amber-500/20">
+                    <div className="flex items-center justify-between border-b border-amber-500/20 pb-3">
+                      <div className="flex items-center gap-2">
+                        <HelpCircle className="w-5 h-5 text-amber-400" />
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-amber-300">
+                          Unverified & Ambiguous Statements ({unverifiedClaims.length})
+                        </h3>
+                      </div>
+                      <span className="text-xs text-amber-400/80 font-mono">
+                        Unsupported or Vague Claims
+                      </span>
+                    </div>
+                    <div className="space-y-4">
+                      {unverifiedClaims.map((claim, idx) =>
+                        renderClaimCard(claim, idx)
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 3: Supported Claims */}
+                {supportedClaims.length > 0 && (
+                  <div className="space-y-4 p-5 rounded-2xl bg-emerald-950/10 border border-emerald-500/20">
+                    <div className="flex items-center justify-between border-b border-emerald-500/20 pb-3">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-300">
+                          Grounded & Supported Claims ({supportedClaims.length})
+                        </h3>
+                      </div>
+                      <span className="text-xs text-emerald-400/80 font-mono">
+                        Fully Backed by Source Documentation
+                      </span>
+                    </div>
+                    <div className="space-y-4">
+                      {supportedClaims.map((claim, idx) =>
+                        renderClaimCard(claim, idx)
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -618,6 +655,7 @@ export const AuditDetailPage: React.FC = () => {
         isOpen={isDrawerOpen}
         onClose={handleCloseDrawer}
         sources={auditSources}
+        auditId={audit.id}
         onViewInSource={(sourceId, span, label) => {
           handleCloseDrawer();
           handleViewInSource(sourceId, span, label);

@@ -134,3 +134,67 @@ export async function listAudits(): Promise<AuditResult[]> {
     return MOCK_AUDITS_HISTORY;
   }
 }
+
+export async function getLatestEval(): Promise<any> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/eval/latest`);
+    if (!res.ok) {
+      throw new Error(`Server returned status ${res.status}`);
+    }
+    return await res.json();
+  } catch (error) {
+    console.warn('[apiClient] Failed to fetch latest eval from backend, returning benchmark mock metrics.', error);
+    return {
+      dataset_split: 'model/eval/data/test.jsonl',
+      total_test_cases: 15,
+      total_claims_evaluated: 31,
+      macro_f1: 0.80,
+      contradiction_precision: 1.0,
+      span_overlap_f1: 1.0,
+      brier_score: 0.0138,
+      ece: 0.1029,
+      per_verdict_metrics: {
+        SUPPORTED: { precision: 1.0, recall: 1.0, f1: 1.0, support: 14 },
+        CONTRADICTED: { precision: 1.0, recall: 1.0, f1: 1.0, support: 9 },
+        UNSUPPORTED: { precision: 1.0, recall: 1.0, f1: 1.0, support: 7 },
+        UNVERIFIABLE: { precision: 0.0, recall: 0.0, f1: 0.0, support: 0 },
+        AMBIGUOUS: { precision: 1.0, recall: 1.0, f1: 1.0, support: 1 },
+      },
+      reliability_diagram: [
+        { bin: '0.0-0.1', bin_min: 0, bin_max: 0.1, count: 0, avg_confidence: 0.05, avg_accuracy: 0 },
+        { bin: '0.1-0.2', bin_min: 0.1, bin_max: 0.2, count: 0, avg_confidence: 0.15, avg_accuracy: 0 },
+        { bin: '0.2-0.3', bin_min: 0.2, bin_max: 0.3, count: 0, avg_confidence: 0.25, avg_accuracy: 0 },
+        { bin: '0.3-0.4', bin_min: 0.3, bin_max: 0.4, count: 0, avg_confidence: 0.35, avg_accuracy: 0 },
+        { bin: '0.4-0.5', bin_min: 0.4, bin_max: 0.5, count: 0, avg_confidence: 0.45, avg_accuracy: 0 },
+        { bin: '0.5-0.6', bin_min: 0.5, bin_max: 0.6, count: 0, avg_confidence: 0.55, avg_accuracy: 0 },
+        { bin: '0.6-0.7', bin_min: 0.6, bin_max: 0.7, count: 0, avg_confidence: 0.65, avg_accuracy: 0 },
+        { bin: '0.7-0.8', bin_min: 0.7, bin_max: 0.8, count: 1, avg_confidence: 0.72, avg_accuracy: 1.0 },
+        { bin: '0.8-0.9', bin_min: 0.8, bin_max: 0.9, count: 7, avg_confidence: 0.82, avg_accuracy: 1.0 },
+        { bin: '0.9-1.0', bin_min: 0.9, bin_max: 1.0, count: 23, avg_confidence: 0.93, avg_accuracy: 1.0 },
+      ],
+    };
+  }
+}
+
+export async function submitFeedback(
+  auditId: string,
+  payload: { findingType: 'claim' | 'reasoning' | 'safety'; findingId: string; verdict: 'correct' | 'incorrect'; comment?: string }
+): Promise<any> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/audits/${auditId}/feedback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      throw new Error(`Server returned status ${res.status}`);
+    }
+    return await res.json();
+  } catch (error) {
+    console.warn(`[apiClient] Feedback submit offline fallback for audit ${auditId}.`, error);
+    return { status: 'submitted', findingId: payload.findingId, verdict: payload.verdict };
+  }
+}
+

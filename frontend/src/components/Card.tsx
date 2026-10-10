@@ -7,6 +7,8 @@ interface CardProps {
   title?: string;
   subtitle?: string;
   action?: React.ReactNode;
+  id?: string;
+  onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 export const Card: React.FC<CardProps> = ({
@@ -15,9 +17,13 @@ export const Card: React.FC<CardProps> = ({
   title,
   subtitle,
   action,
+  id,
+  onClick,
 }) => {
   return (
     <div
+      id={id}
+      onClick={onClick}
       className={clsx(
         'glass-card rounded-xl p-5 border border-white/5 bg-slate-900/40 backdrop-blur-md shadow-xl transition-all duration-200',
         className

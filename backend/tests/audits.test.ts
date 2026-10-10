@@ -28,6 +28,9 @@ beforeEach(async () => {
     await collections[key].deleteMany({});
   }
   jest.restoreAllMocks();
+  jest
+    .spyOn(modelClient, 'analyzeReasoningAndSafety')
+    .mockResolvedValue({ reasoningIssues: [], safetyFlags: [] });
 });
 
 afterEach(() => {

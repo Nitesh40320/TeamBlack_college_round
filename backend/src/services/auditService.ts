@@ -250,20 +250,61 @@ export class AuditService {
     };
   }
 
-  public async listAudits(
-    page: number = 1,
-    limit: number = 20,
-    status?: string
-  ) {
+  public async listAudits(params: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    q?: string;
+    grade?: string;
+    verdict?: string;
+    safetyFlagged?: boolean | string;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }) {
+    const page = params.page || 1;
+    const limit = params.limit || 20;
     const query: Record<string, any> = {};
-    if (status) {
-      query.status = status;
+
+    if (params.status) {
+      query.status = params.status;
     }
+
+    if (params.grade) {
+      query['overall.grade'] = params.grade.toUpperCase();
+    }
+
+    if (params.verdict) {
+      query['claims.verdict'] = params.verdict.toUpperCase();
+    }
+
+    if (params.safetyFlagged !== undefined) {
+      const isFlagged =
+        params.safetyFlagged === true || params.safetyFlagged === 'true';
+      if (isFlagged) {
+        query['safetyFlags.0'] = { $exists: true };
+      } else {
+        query['safetyFlags.0'] = { $exists: false };
+      }
+    }
+
+    if (params.q) {
+      query.$or = [
+        { answer: { $regex: params.q, $options: 'i' } },
+        { question: { $regex: params.q, $options: 'i' } },
+      ];
+    }
+
+    const sortField =
+      params.sortBy === 'score'
+        ? 'overall.score'
+        : params.sortBy || 'createdAt';
+    const sortDir = params.sortOrder === 'asc' ? 1 : -1;
+    const sortObj: Record<string, any> = { [sortField]: sortDir };
 
     const skip = (page - 1) * limit;
     const [data, total] = await Promise.all([
       AuditModel.find(query)
-        .sort({ createdAt: -1 })
+        .sort(sortObj)
         .skip(skip)
         .limit(limit)
         .exec(),

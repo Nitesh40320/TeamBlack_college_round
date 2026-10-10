@@ -8,6 +8,7 @@ import {
   Activity,
   ChevronRight,
   Sparkles,
+  BarChart3,
 } from 'lucide-react';
 
 export const Layout: React.FC = () => {
@@ -17,6 +18,7 @@ export const Layout: React.FC = () => {
     if (location.pathname.startsWith('/new')) return 'New Audit';
     if (location.pathname.startsWith('/audit')) return 'Audit Report';
     if (location.pathname.startsWith('/history')) return 'Audit History';
+    if (location.pathname.startsWith('/evaluation')) return 'Evaluation Benchmark';
     return 'Dashboard';
   };
 
@@ -85,8 +87,23 @@ export const Layout: React.FC = () => {
               <History className="w-4 h-4 shrink-0" />
               <span>Audit History</span>
             </NavLink>
+
+            <NavLink
+              to="/evaluation"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  isActive
+                    ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-md shadow-cyan-500/5'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                }`
+              }
+            >
+              <BarChart3 className="w-4 h-4 shrink-0 text-teal-400" />
+              <span>Eval Benchmark</span>
+            </NavLink>
           </nav>
         </div>
+
 
         {/* Footer info */}
         <div className="p-4 border-t border-white/5">

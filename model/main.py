@@ -3,16 +3,39 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from contextlib import asynccontextmanager
+
 from model.api import router
 from model.config import settings
 from model.logging_config import logger
 from model.schemas import ErrorDetail, ErrorResponse
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting up Second Opinion Model Service. Performing model warm-up...")
+    try:
+        from model.pipeline import score_nli_pairs, retrieve_chunks
+        from model.schemas.primitives import Source
+
+        score_nli_pairs([("Warmup premise.", "Warmup hypothesis.")])
+        retrieve_chunks(
+            "Warmup claim",
+            [Source(id="warmup-src", title="Warmup", text="Warmup passage text.")],
+        )
+        logger.info("Model warm-up completed successfully.")
+    except Exception as exc:
+        logger.warning("Startup model warm-up notice: %s", exc)
+    yield
+    logger.info("Shutting down Second Opinion Model Service.")
+
 
 app = FastAPI(
     title="Second Opinion - Model Service",
     version=settings.VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 app.include_router(router)

@@ -1,3 +1,4 @@
+import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import { AuditModel } from '../models/Audit';
 import { SourceModel } from '../models/Source';
@@ -10,6 +11,9 @@ import {
   OverallScore,
   SafetySeverity,
 } from '../types/contract';
+
+export const auditEvents = new EventEmitter();
+auditEvents.setMaxListeners(200);
 
 export class AuditOrchestrator {
   private queue: Array<{ auditId: string; fromStage?: string }> = [];
@@ -54,6 +58,15 @@ export class AuditOrchestrator {
     }
   }
 
+  private notifyProgress(audit: any): void {
+    auditEvents.emit(`audit:${audit.id}`, {
+      auditId: audit.id,
+      status: audit.status,
+      progress: audit.progress,
+      error: audit.error,
+    });
+  }
+
   public async runAuditPipeline(auditId: string, fromStage?: string): Promise<void> {
     const audit = await AuditModel.findOne({ id: auditId });
     if (!audit) {
@@ -88,6 +101,7 @@ export class AuditOrchestrator {
         };
         audit.updatedAt = new Date().toISOString();
         await audit.save();
+        this.notifyProgress(audit);
 
         const extractStart = Date.now();
         const extractionResponse = await modelClient.extractClaims(answer, question);
@@ -123,6 +137,7 @@ export class AuditOrchestrator {
         };
         audit.updatedAt = new Date().toISOString();
         await audit.save();
+        this.notifyProgress(audit);
       }
 
       // ── Stage 2: Claim Verification ────────────────────────────────────────
@@ -137,6 +152,7 @@ export class AuditOrchestrator {
           totalClaims,
         };
         await audit.save();
+        this.notifyProgress(audit);
 
         const verifyStart = Date.now();
         let verifiedCount = 0;
@@ -176,6 +192,7 @@ export class AuditOrchestrator {
           };
           audit.updatedAt = new Date().toISOString();
           await audit.save();
+          this.notifyProgress(audit);
         }
 
         const verifyMs = Date.now() - verifyStart;
@@ -191,6 +208,7 @@ export class AuditOrchestrator {
       };
       audit.updatedAt = new Date().toISOString();
       await audit.save();
+      this.notifyProgress(audit);
 
       const analysisStart = Date.now();
       const analysisResult = await modelClient.analyzeReasoningAndSafety(
@@ -277,6 +295,7 @@ export class AuditOrchestrator {
       };
       audit.updatedAt = new Date().toISOString();
       await audit.save();
+      this.notifyProgress(audit);
     } catch (err: any) {
       console.error(`[Orchestrator] Pipeline failed for audit ${auditId}:`, err);
       audit.status = 'failed';
@@ -288,6 +307,7 @@ export class AuditOrchestrator {
       };
       audit.updatedAt = new Date().toISOString();
       await audit.save();
+      this.notifyProgress(audit);
     }
   }
 }

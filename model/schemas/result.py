@@ -133,6 +133,7 @@ class Meta(BaseModel):
     timings: Timings
     modelVersions: ModelVersions
     mode: RunMode
+    degradedFlags: List[str] = Field(default_factory=list)
 
 
 class AuditResult(BaseModel):

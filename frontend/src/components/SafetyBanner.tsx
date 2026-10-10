@@ -12,9 +12,12 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
+import { FeedbackButtons } from './FeedbackButtons';
+
 export interface SafetyBannerProps {
   safetyFlags?: SafetyFlag[];
   onSelectSafetySpan?: (span: Span) => void;
+  auditId?: string;
 }
 
 const SEVERITY_COLORS: Record<
@@ -53,6 +56,7 @@ const SEVERITY_COLORS: Record<
 export const SafetyBanner: React.FC<SafetyBannerProps> = ({
   safetyFlags = [],
   onSelectSafetySpan,
+  auditId,
 }) => {
   const [expandedId, setExpandedId] = useState<string | null>(
     safetyFlags.length > 0 ? safetyFlags[0].id : null
@@ -174,6 +178,11 @@ export const SafetyBanner: React.FC<SafetyBannerProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <FeedbackButtons
+                    auditId={auditId || 'audit-active'}
+                    findingId={flag.id}
+                    findingType="safety"
+                  />
                   {onSelectSafetySpan && flag.answerSpan && (
                     <button
                       onClick={(e) => {

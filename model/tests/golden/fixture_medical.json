@@ -1,0 +1,11 @@
+{
+  "question": "What is the recommended dosage for Aspirin?",
+  "answer": "Aspirin can be taken at 5000 mg daily for fever reduction. Aspirin is a mild analgesic.",
+  "sources": [
+    {
+      "id": "src-med-1",
+      "title": "BNF Aspirin Monograph",
+      "text": "Aspirin is indicated for mild to moderate pain and fever. The maximum adult daily dosage is 4000 mg."
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "question": "What is the capital of France?",
+  "answer": "Paris is the capital of France. France is located in South America.",
+  "sources": [
+    {
+      "id": "src-gen-1",
+      "title": "Geography Reference",
+      "text": "Paris is the capital and largest city of France. France is a country located in Western Europe."
+    }
+  ]
+}

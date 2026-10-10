@@ -14,10 +14,14 @@ import {
   Info,
 } from 'lucide-react';
 
+import { ConfidenceMeter } from './ConfidenceMeter';
+import { FeedbackButtons } from './FeedbackButtons';
+
 export interface ReasoningGraphViewProps {
   claims: Claim[];
   reasoningIssues?: ReasoningIssue[];
   onSelectClaim?: (claim: Claim) => void;
+  auditId?: string;
 }
 
 const ISSUE_BADGE_STYLES: Record<
@@ -54,6 +58,7 @@ export const ReasoningGraphView: React.FC<ReasoningGraphViewProps> = ({
   claims = [],
   reasoningIssues = [],
   onSelectClaim,
+  auditId,
 }) => {
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(
     reasoningIssues.length > 0 ? reasoningIssues[0].id : null
@@ -273,21 +278,31 @@ export const ReasoningGraphView: React.FC<ReasoningGraphViewProps> = ({
                       }`}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full border text-[11px] font-bold ${style.bg} ${style.border} ${style.text}`}
-                        >
-                          {style.label}
-                        </span>
-                        <span className="text-slate-400">
-                          Involved Claims: [
-                          {issue.claimIds
-                            .map(
-                              (cid) =>
-                                `C${claims.findIndex((c) => c.id === cid) + 1}`
-                            )
-                            .join(', ')}
-                          ]
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full border text-[11px] font-bold ${style.bg} ${style.border} ${style.text}`}
+                          >
+                            {style.label}
+                          </span>
+                          <ConfidenceMeter confidence={issue.confidence} />
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <FeedbackButtons
+                            auditId={auditId || 'audit-active'}
+                            findingId={issue.id}
+                            findingType="reasoning"
+                          />
+                          <span className="text-slate-400">
+                            Involved Claims: [
+                            {issue.claimIds
+                              .map(
+                                (cid) =>
+                                  `C${claims.findIndex((c) => c.id === cid) + 1}`
+                              )
+                              .join(', ')}
+                            ]
+                          </span>
+                        </div>
                       </div>
 
                       {/* Premise -> Conclusion / Conflict Connector Flow */}

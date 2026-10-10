@@ -154,6 +154,8 @@ export interface Meta {
 
 export interface AuditResult {
   id: string;
+  question?: string;
+  answer?: string;
   status: AuditStatus;
   claims: Claim[];
   reasoningIssues: ReasoningIssue[];

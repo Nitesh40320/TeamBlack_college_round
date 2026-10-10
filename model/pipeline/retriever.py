@@ -178,19 +178,26 @@ def retrieve_chunks(
     # 2. Dense Embedding Retrieval (with per-audit caching)
     cache_key = _get_source_cache_key(sources)
     model = _get_sentence_transformer()
+    dense_scores: Optional[List[float]] = None
 
     if model is not None:
-        if cache_key in _EMBEDDING_CACHE:
-            _, chunk_embeddings = _EMBEDDING_CACHE[cache_key]
-        else:
-            chunk_texts = [c.text for _, c in all_chunks]
-            raw_embs = model.encode(chunk_texts, convert_to_numpy=True)
-            chunk_embeddings = [emb.tolist() for emb in raw_embs]
-            _EMBEDDING_CACHE[cache_key] = ([c for _, c in all_chunks], chunk_embeddings)
+        try:
+            if cache_key in _EMBEDDING_CACHE:
+                _, chunk_embeddings = _EMBEDDING_CACHE[cache_key]
+            else:
+                chunk_texts = [c.text for _, c in all_chunks]
+                raw_embs = model.encode(chunk_texts, convert_to_numpy=True)
+                chunk_embeddings = [emb.tolist() for emb in raw_embs]
+                _EMBEDDING_CACHE[cache_key] = ([c for _, c in all_chunks], chunk_embeddings)
 
-        query_embedding = model.encode(claim_text, convert_to_numpy=True).tolist()
-        dense_scores = [float(_cosine_similarity(query_embedding, emb)) for emb in chunk_embeddings]
-    else:
+            query_embedding = model.encode(claim_text, convert_to_numpy=True).tolist()
+            dense_scores = [float(_cosine_similarity(query_embedding, emb)) for emb in chunk_embeddings]
+        except Exception as exc:
+            from model.logging_config import logger
+            logger.warning("Dense embedding model encoding failed; falling back to TF-IDF BM25: %s", exc)
+            dense_scores = None
+
+    if dense_scores is None:
         # Fallback TF-IDF cosine similarity
         vocab: Dict[str, int] = {}
         for doc in corpus_tokens:

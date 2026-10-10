@@ -2,6 +2,8 @@ import { Router } from 'express';
 import {
   createAudit,
   getAuditById,
+  streamAuditProgress,
+  exportAuditReport,
   rerunAudit,
   listAudits,
   getFindings,
@@ -17,6 +19,8 @@ const router = Router();
 router.post('/audits', createAudit);
 router.get('/audits', listAudits);
 router.get('/audits/:id', getAuditById);
+router.get('/audits/:id/stream', streamAuditProgress);
+router.get('/audits/:id/export', exportAuditReport);
 router.get('/audits/:id/summary', getAuditSummary);
 router.get('/audits/:id/findings', getFindings);
 router.get('/audits/:id/annotations', getAnnotations);
