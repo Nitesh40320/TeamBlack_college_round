@@ -8,8 +8,10 @@ import { ClaimsFilterSort, SortOption } from '../components/ClaimsFilterSort';
 import { ClaimDetailDrawer } from '../components/ClaimDetailDrawer';
 import { SourceViewerPanel } from '../components/SourceViewerPanel';
 import { AnnotatedAnswerView } from '../components/AnnotatedAnswerView';
+import { SafetyBanner } from '../components/SafetyBanner';
+import { ReasoningGraphView } from '../components/ReasoningGraphView';
 import { getAuditById, rerunAudit } from '../api/apiClient';
-import { Verdict, ClaimType, Claim, SourceSpan, Source } from '../types/contract';
+import { Verdict, ClaimType, Claim, SourceSpan, Source, Span } from '../types/contract';
 import {
   ShieldAlert,
   AlertTriangle,
@@ -24,12 +26,16 @@ import {
   ExternalLink,
   BookOpen,
   Split,
-  FileText,
+  GitCommit,
+  CheckCircle2,
 } from 'lucide-react';
 
 export const AuditDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
+
+  // Navigation Tab State
+  const [activeTab, setActiveTab] = useState<'claims' | 'reasoning' | 'safety'>('claims');
 
   // Filter, Sort, & Drawer States
   const [selectedVerdict, setSelectedVerdict] = useState<Verdict | 'ALL'>('ALL');
@@ -38,6 +44,7 @@ export const AuditDetailPage: React.FC = () => {
 
   // Selected Claim & Drawer State
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
+  const [selectedSpan, setSelectedSpan] = useState<Span | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   // Source Viewer Active State & Span Highlight State
@@ -167,8 +174,11 @@ export const AuditDetailPage: React.FC = () => {
     },
   ];
 
-  // Calculate verified claims count x out of total claims y
+  // Calculate counts
   const totalClaims = audit.claims ? audit.claims.length : 0;
+  const reasoningCount = audit.reasoningIssues ? audit.reasoningIssues.length : 0;
+  const safetyCount = audit.safetyFlags ? audit.safetyFlags.length : 0;
+
   const verifiedClaims = audit.claims
     ? audit.claims.filter((c) => c.verdict).length
     : 0;
@@ -211,11 +221,9 @@ export const AuditDetailPage: React.FC = () => {
 
   // Filter & Sort Claims List
   const filteredClaims = (audit.claims || []).filter((claim) => {
-    // Verdict Filter
     if (selectedVerdict !== 'ALL' && claim.verdict !== selectedVerdict) {
       return false;
     }
-    // Search Query Filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const matchText = claim.text.toLowerCase().includes(q);
@@ -236,7 +244,7 @@ export const AuditDetailPage: React.FC = () => {
     if (sortOption === 'confidence-desc') {
       return (b.confidence?.score || 0) - (a.confidence?.score || 0);
     }
-    return 0; // original order
+    return 0;
   });
 
   return (
@@ -267,6 +275,12 @@ export const AuditDetailPage: React.FC = () => {
         error={audit.error}
         onRerun={() => rerunMutation.mutate()}
         isRerunning={rerunMutation.isPending}
+      />
+
+      {/* REQUIREMENT 1 (Safety Banner Prominent Display) */}
+      <SafetyBanner
+        safetyFlags={audit.safetyFlags}
+        onSelectSafetySpan={(span) => setSelectedSpan(span)}
       />
 
       {/* Top Header Summary Card Grid */}
@@ -354,7 +368,10 @@ export const AuditDetailPage: React.FC = () => {
               <AnnotatedAnswerView
                 answer={audit.answer}
                 claims={audit.claims || []}
+                reasoningIssues={audit.reasoningIssues || []}
+                safetyFlags={audit.safetyFlags || []}
                 selectedClaim={selectedClaim}
+                selectedSpan={selectedSpan}
                 onSelectClaim={(claim) => handleOpenClaimDetail(claim)}
               />
             </div>
@@ -372,166 +389,230 @@ export const AuditDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Safety Flags Section */}
-      {audit.safetyFlags && audit.safetyFlags.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-            <ShieldAlert className="w-5 h-5 text-rose-400" /> Safety Concerns (
-            {audit.safetyFlags.length})
-          </h2>
-          {audit.safetyFlags.map((flag) => (
-            <div
-              key={flag.id}
-              className="p-5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-200 space-y-2 shadow-lg"
+      {/* NAVIGATION TABS: Claims | Reasoning | Safety */}
+      <div className="space-y-6 pt-4">
+        <div className="flex border-b border-white/10 gap-2">
+          {/* Claims Tab */}
+          <button
+            onClick={() => setActiveTab('claims')}
+            className={`px-5 py-3 rounded-t-xl text-sm font-bold flex items-center gap-2 transition-all border-t border-x ${
+              activeTab === 'claims'
+                ? 'bg-slate-900 text-cyan-400 border-white/10 border-b-slate-900 -mb-px'
+                : 'text-slate-400 hover:text-slate-200 border-transparent bg-slate-950/40'
+            }`}
+          >
+            <Layers className="w-4 h-4 text-cyan-400" />
+            Claims
+            <span
+              className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-full ${
+                activeTab === 'claims'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                  : 'bg-slate-800 text-slate-400'
+              }`}
             >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                  Domain: {flag.domain} | Severity: {flag.severity}
-                </span>
-              </div>
-              <p className="text-sm font-medium">{flag.explanation}</p>
-              <div className="text-xs text-rose-300/90 bg-slate-950/50 p-3 rounded-xl border border-rose-500/20">
-                <strong>Recommendation:</strong> {flag.recommendation}
-              </div>
-            </div>
-          ))}
+              {totalClaims}
+            </span>
+          </button>
+
+          {/* Reasoning Tab */}
+          <button
+            onClick={() => setActiveTab('reasoning')}
+            className={`px-5 py-3 rounded-t-xl text-sm font-bold flex items-center gap-2 transition-all border-t border-x ${
+              activeTab === 'reasoning'
+                ? 'bg-slate-900 text-violet-400 border-white/10 border-b-slate-900 -mb-px'
+                : 'text-slate-400 hover:text-slate-200 border-transparent bg-slate-950/40'
+            }`}
+          >
+            <GitCommit className="w-4 h-4 text-violet-400" />
+            Reasoning Flow
+            <span
+              className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-full ${
+                activeTab === 'reasoning'
+                  ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30'
+                  : 'bg-slate-800 text-slate-400'
+              }`}
+            >
+              {reasoningCount}
+            </span>
+          </button>
+
+          {/* Safety Tab */}
+          <button
+            onClick={() => setActiveTab('safety')}
+            className={`px-5 py-3 rounded-t-xl text-sm font-bold flex items-center gap-2 transition-all border-t border-x ${
+              activeTab === 'safety'
+                ? 'bg-slate-900 text-rose-400 border-white/10 border-b-slate-900 -mb-px'
+                : 'text-slate-400 hover:text-slate-200 border-transparent bg-slate-950/40'
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4 text-rose-400" />
+            Safety & Risks
+            <span
+              className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-full ${
+                activeTab === 'safety'
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                  : 'bg-slate-800 text-slate-400'
+              }`}
+            >
+              {safetyCount}
+            </span>
+          </button>
         </div>
-      )}
 
-      {/* REQUIREMENT 2: Filter Chips & Severity Sort Controls */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-            <Layers className="w-5 h-5 text-cyan-400" /> Extracted Claims (
-            {totalClaims})
-          </h2>
-          <span className="text-xs text-slate-400 font-mono">
-            Showing {sortedClaims.length} of {totalClaims} claims
-          </span>
-        </div>
+        {/* TAB CONTENTS */}
 
-        <ClaimsFilterSort
-          verdictCounts={verdictCounts}
-          selectedVerdict={selectedVerdict}
-          onSelectVerdict={setSelectedVerdict}
-          sortOption={sortOption}
-          onChangeSortOption={setSortOption}
-          searchQuery={searchQuery}
-          onSearchQueryChange={setSearchQuery}
-        />
-
-        {/* Claims Table / Card List */}
-        {sortedClaims.length === 0 ? (
-          <Card>
-            <div className="text-center py-10 space-y-2 text-slate-400">
-              <BookOpen className="w-8 h-8 text-slate-600 mx-auto" />
-              <p className="text-sm font-semibold">No claims match the selected filters.</p>
-              <button
-                onClick={() => {
-                  setSelectedVerdict('ALL');
-                  setSearchQuery('');
-                }}
-                className="text-xs font-semibold text-cyan-400 underline hover:text-cyan-300"
-              >
-                Reset Filters
-              </button>
+        {/* 1. Claims Tab */}
+        {activeTab === 'claims' && (
+          <div className="space-y-4 animate-fadeIn">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <Layers className="w-5 h-5 text-cyan-400" /> Extracted Claims (
+                {totalClaims})
+              </h2>
+              <span className="text-xs text-slate-400 font-mono">
+                Showing {sortedClaims.length} of {totalClaims} claims
+              </span>
             </div>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {sortedClaims.map((claim, idx) => (
-              <Card
-                key={claim.id}
-                className="hover:border-cyan-500/40 transition-all cursor-pointer group"
-              >
-                <div
-                  className="space-y-4"
-                  onClick={() => handleOpenClaimDetail(claim)}
-                >
-                  {/* Top Claim Card Header Row */}
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3 flex-1">
-                      <span className="w-7 h-7 rounded-full bg-slate-800 text-cyan-400 text-xs font-mono font-bold flex items-center justify-center shrink-0 mt-0.5 border border-cyan-500/30 group-hover:bg-cyan-500 group-hover:text-slate-950 transition-colors">
-                        {idx + 1}
-                      </span>
-                      <div className="space-y-2 flex-1">
-                        <p className="text-base font-semibold text-slate-100 leading-snug group-hover:text-cyan-200 transition-colors">
-                          "{claim.text}"
-                        </p>
 
-                        {/* Metadata Row: Claim Type Badge + Evidence Count + Span */}
-                        <div className="flex flex-wrap items-center gap-2 pt-1">
-                          {/* Claim Type Badge */}
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full border text-xs font-mono uppercase tracking-wider ${
-                              claimTypeBadgeStyles[claim.claimType] ||
-                              'bg-slate-800 text-slate-300 border-white/10'
-                            }`}
-                          >
-                            Type: {claim.claimType}
-                          </span>
+            <ClaimsFilterSort
+              verdictCounts={verdictCounts}
+              selectedVerdict={selectedVerdict}
+              onSelectVerdict={setSelectedVerdict}
+              sortOption={sortOption}
+              onChangeSortOption={setSortOption}
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+            />
 
-                          {/* Opinion Indicator */}
-                          {claim.claimType === 'opinion' && (
-                            <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs font-semibold flex items-center gap-1 shadow-sm">
-                              <MessageSquareQuote className="w-3.5 h-3.5 text-purple-400" />
-                              Opinion / Subjective
-                            </span>
-                          )}
-
-                          {/* Evidence Count Badge */}
-                          <span className="px-2.5 py-0.5 rounded-full bg-slate-900 border border-cyan-500/20 text-xs font-mono text-cyan-300 flex items-center gap-1">
-                            <BookOpen className="w-3 h-3 text-cyan-400" />
-                            {claim.evidence?.length || 0} Evidence Passages
-                          </span>
-
-                          {/* Answer Span Badge */}
-                          <span className="px-2 py-0.5 rounded bg-slate-900 border border-white/5 text-xs font-mono text-slate-400 flex items-center gap-1">
-                            <Hash className="w-3 h-3 text-slate-500" />
-                            Span: [{claim.answerSpan.start}, {claim.answerSpan.end}]
-                          </span>
-
-                          {/* Error Category Badge */}
-                          {claim.errorCategory && (
-                            <span className="px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-xs font-mono font-bold text-rose-300">
-                              Error: {claim.errorCategory}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Verdict Badge (Color + Icon + Text) */}
-                    <div className="shrink-0">
-                      <VerdictBadge verdict={claim.verdict} size="lg" />
-                    </div>
-                  </div>
-
-                  {/* Audit Rationale Snippet */}
-                  <div className="text-xs text-slate-300 bg-slate-950/70 p-3 rounded-xl border border-white/5 space-y-1">
-                    <span className="font-semibold text-cyan-400 uppercase tracking-wider text-[10px]">
-                      Audit Rationale:
-                    </span>
-                    <p className="text-slate-200 line-clamp-2">{claim.explanation}</p>
-                  </div>
-
-                  {/* Quick Action Footer */}
-                  <div className="flex items-center justify-between text-xs pt-1 border-t border-white/5 text-slate-400 group-hover:text-cyan-300">
-                    <span className="font-mono">
-                      Confidence: {Math.round((claim.confidence?.score || 0) * 100)}%
-                    </span>
-                    <span className="font-semibold flex items-center gap-1">
-                      Inspect Claim & Evidence <ExternalLink className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
+            {/* Claims Cards */}
+            {sortedClaims.length === 0 ? (
+              <Card>
+                <div className="text-center py-10 space-y-2 text-slate-400">
+                  <BookOpen className="w-8 h-8 text-slate-600 mx-auto" />
+                  <p className="text-sm font-semibold">No claims match the selected filters.</p>
+                  <button
+                    onClick={() => {
+                      setSelectedVerdict('ALL');
+                      setSearchQuery('');
+                    }}
+                    className="text-xs font-semibold text-cyan-400 underline hover:text-cyan-300"
+                  >
+                    Reset Filters
+                  </button>
                 </div>
               </Card>
-            ))}
+            ) : (
+              <div className="space-y-4">
+                {sortedClaims.map((claim, idx) => (
+                  <Card
+                    key={claim.id}
+                    className="hover:border-cyan-500/40 transition-all cursor-pointer group"
+                  >
+                    <div
+                      className="space-y-4"
+                      onClick={() => handleOpenClaimDetail(claim)}
+                    >
+                      {/* Top Claim Card Header Row */}
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-3 flex-1">
+                          <span className="w-7 h-7 rounded-full bg-slate-800 text-cyan-400 text-xs font-mono font-bold flex items-center justify-center shrink-0 mt-0.5 border border-cyan-500/30 group-hover:bg-cyan-500 group-hover:text-slate-950 transition-colors">
+                            {idx + 1}
+                          </span>
+                          <div className="space-y-2 flex-1">
+                            <p className="text-base font-semibold text-slate-100 leading-snug group-hover:text-cyan-200 transition-colors">
+                              "{claim.text}"
+                            </p>
+
+                            {/* Metadata Row */}
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full border text-xs font-mono uppercase tracking-wider ${
+                                  claimTypeBadgeStyles[claim.claimType] ||
+                                  'bg-slate-800 text-slate-300 border-white/10'
+                                }`}
+                              >
+                                Type: {claim.claimType}
+                              </span>
+
+                              {claim.claimType === 'opinion' && (
+                                <span className="px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs font-semibold flex items-center gap-1 shadow-sm">
+                                  <MessageSquareQuote className="w-3.5 h-3.5 text-purple-400" />
+                                  Opinion / Subjective
+                                </span>
+                              )}
+
+                              <span className="px-2.5 py-0.5 rounded-full bg-slate-900 border border-cyan-500/20 text-xs font-mono text-cyan-300 flex items-center gap-1">
+                                <BookOpen className="w-3 h-3 text-cyan-400" />
+                                {claim.evidence?.length || 0} Evidence Passages
+                              </span>
+
+                              <span className="px-2 py-0.5 rounded bg-slate-900 border border-white/5 text-xs font-mono text-slate-400 flex items-center gap-1">
+                                <Hash className="w-3 h-3 text-slate-500" />
+                                Span: [{claim.answerSpan.start}, {claim.answerSpan.end}]
+                              </span>
+
+                              {claim.errorCategory && (
+                                <span className="px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-xs font-mono font-bold text-rose-300">
+                                  Error: {claim.errorCategory}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0">
+                          <VerdictBadge verdict={claim.verdict} size="lg" />
+                        </div>
+                      </div>
+
+                      {/* Audit Rationale Snippet */}
+                      <div className="text-xs text-slate-300 bg-slate-950/70 p-3 rounded-xl border border-white/5 space-y-1">
+                        <span className="font-semibold text-cyan-400 uppercase tracking-wider text-[10px]">
+                          Audit Rationale:
+                        </span>
+                        <p className="text-slate-200 line-clamp-2">{claim.explanation}</p>
+                      </div>
+
+                      {/* Quick Action Footer */}
+                      <div className="flex items-center justify-between text-xs pt-1 border-t border-white/5 text-slate-400 group-hover:text-cyan-300">
+                        <span className="font-mono">
+                          Confidence: {Math.round((claim.confidence?.score || 0) * 100)}%
+                        </span>
+                        <span className="font-semibold flex items-center gap-1">
+                          Inspect Claim & Evidence <ExternalLink className="w-3.5 h-3.5" />
+                        </span>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 2. Reasoning Tab */}
+        {activeTab === 'reasoning' && (
+          <div className="animate-fadeIn">
+            <ReasoningGraphView
+              claims={audit.claims || []}
+              reasoningIssues={audit.reasoningIssues || []}
+              onSelectClaim={handleOpenClaimDetail}
+            />
+          </div>
+        )}
+
+        {/* 3. Safety Tab */}
+        {activeTab === 'safety' && (
+          <div className="animate-fadeIn space-y-4">
+            <SafetyBanner
+              safetyFlags={audit.safetyFlags || []}
+              onSelectSafetySpan={(span) => setSelectedSpan(span)}
+            />
           </div>
         )}
       </div>
 
-      {/* REQUIREMENT 3: Claim Detail Drawer */}
+      {/* Claim Detail Drawer */}
       <ClaimDetailDrawer
         claim={selectedClaim}
         isOpen={isDrawerOpen}

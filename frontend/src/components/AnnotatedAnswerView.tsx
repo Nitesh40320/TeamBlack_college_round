@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Claim, Verdict, ErrorCategory } from '../types/contract';
+import { Claim, Verdict, ErrorCategory, ReasoningIssue, SafetyFlag, Span } from '../types/contract';
 import { segmentAnswerSpans, TextSegment } from '../utils/spanSegmenter';
 import { VerdictBadge } from './VerdictBadge';
 import {
@@ -12,13 +12,18 @@ import {
   ExternalLink,
   ChevronRight,
   SlidersHorizontal,
+  GitCommit,
+  Sparkles,
 } from 'lucide-react';
 
 export interface AnnotatedAnswerViewProps {
   answer: string;
   claims: Claim[];
-  selectedClaim: Claim | null;
-  onSelectClaim: (claim: Claim) => void;
+  reasoningIssues?: ReasoningIssue[];
+  safetyFlags?: SafetyFlag[];
+  selectedClaim?: Claim | null;
+  selectedSpan?: Span | null;
+  onSelectClaim?: (claim: Claim) => void;
 }
 
 const CATEGORY_LABELS: Record<ErrorCategory | 'NONE', string> = {
@@ -34,7 +39,10 @@ const CATEGORY_LABELS: Record<ErrorCategory | 'NONE', string> = {
 export const AnnotatedAnswerView: React.FC<AnnotatedAnswerViewProps> = ({
   answer,
   claims,
+  reasoningIssues = [],
+  safetyFlags = [],
   selectedClaim,
+  selectedSpan,
   onSelectClaim,
 }) => {
   // Local Filter & Toggle State
@@ -48,43 +56,68 @@ export const AnnotatedAnswerView: React.FC<AnnotatedAnswerViewProps> = ({
     selectedVerdict,
     selectedCategory,
     showOnlyProblems,
+    reasoningIssues,
+    safetyFlags,
   });
 
-  // Highlight Style Mapper by Verdict
+  // Check if a segment overlaps with safetyFlags or reasoningIssues
+  const getOverlappingSafety = (segStart: number, segEnd: number): SafetyFlag | undefined => {
+    return safetyFlags.find(
+      (sf) => sf.answerSpan && !(sf.answerSpan.end <= segStart || sf.answerSpan.start >= segEnd)
+    );
+  };
+
+  const getOverlappingReasoning = (segStart: number, segEnd: number): ReasoningIssue | undefined => {
+    return reasoningIssues.find(
+      (ri) => ri.answerSpan && !(ri.answerSpan.end <= segStart || ri.answerSpan.start >= segEnd)
+    );
+  };
+
+  // Highlight Style Mapper by Verdict / Safety / Reasoning
   const getHighlightStyle = (
-    verdict: Verdict,
+    verdict: Verdict | undefined,
     isErrorSpan: boolean,
-    isSelected: boolean
+    isSelected: boolean,
+    safetyFlag?: SafetyFlag,
+    reasoningIssue?: ReasoningIssue
   ): { containerStyle: string; underlineStyle: string } => {
     let containerStyle = '';
     let underlineStyle = '';
 
-    switch (verdict) {
-      case 'CONTRADICTED':
-        containerStyle = isErrorSpan
-          ? 'bg-rose-500/20 text-rose-100 border-rose-500/40'
-          : 'bg-rose-500/10 text-rose-200 border-rose-500/20';
-        underlineStyle = 'underline decoration-rose-500 decoration-wavy decoration-2';
-        break;
-      case 'UNSUPPORTED':
-        containerStyle = isErrorSpan
-          ? 'bg-amber-500/20 text-amber-100 border-amber-500/40'
-          : 'bg-amber-500/10 text-amber-200 border-amber-500/20';
-        underlineStyle = 'underline decoration-amber-400 decoration-dashed decoration-2';
-        break;
-      case 'AMBIGUOUS':
-        containerStyle = 'bg-purple-500/15 text-purple-200 border-purple-500/30';
-        underlineStyle = 'underline decoration-purple-400 decoration-dotted decoration-2';
-        break;
-      case 'UNVERIFIABLE':
-        containerStyle = 'bg-slate-800/60 text-slate-200 border-slate-700';
-        underlineStyle = 'underline decoration-slate-400 decoration-dotted decoration-2';
-        break;
-      case 'SUPPORTED':
-      default:
-        containerStyle = 'bg-emerald-500/10 text-emerald-200 border-emerald-500/20';
-        underlineStyle = 'underline decoration-emerald-500/60 decoration-solid decoration-1';
-        break;
+    if (safetyFlag) {
+      containerStyle = 'bg-rose-500/25 text-rose-100 border-rose-500/50 shadow-sm shadow-rose-500/20 animate-pulse';
+      underlineStyle = 'underline decoration-rose-500 decoration-wavy decoration-2 font-semibold';
+    } else if (reasoningIssue) {
+      containerStyle = 'bg-violet-500/20 text-violet-100 border-violet-500/40 shadow-sm shadow-violet-500/20';
+      underlineStyle = 'underline decoration-violet-400 decoration-dashed decoration-2 font-semibold';
+    } else {
+      switch (verdict) {
+        case 'CONTRADICTED':
+          containerStyle = isErrorSpan
+            ? 'bg-rose-500/20 text-rose-100 border-rose-500/40'
+            : 'bg-rose-500/10 text-rose-200 border-rose-500/20';
+          underlineStyle = 'underline decoration-rose-500 decoration-wavy decoration-2';
+          break;
+        case 'UNSUPPORTED':
+          containerStyle = isErrorSpan
+            ? 'bg-amber-500/20 text-amber-100 border-amber-500/40'
+            : 'bg-amber-500/10 text-amber-200 border-amber-500/20';
+          underlineStyle = 'underline decoration-amber-400 decoration-dashed decoration-2';
+          break;
+        case 'AMBIGUOUS':
+          containerStyle = 'bg-purple-500/15 text-purple-200 border-purple-500/30';
+          underlineStyle = 'underline decoration-purple-400 decoration-dotted decoration-2';
+          break;
+        case 'UNVERIFIABLE':
+          containerStyle = 'bg-slate-800/60 text-slate-200 border-slate-700';
+          underlineStyle = 'underline decoration-slate-400 decoration-dotted decoration-2';
+          break;
+        case 'SUPPORTED':
+        default:
+          containerStyle = 'bg-emerald-500/10 text-emerald-200 border-emerald-500/20';
+          underlineStyle = 'underline decoration-emerald-500/60 decoration-solid decoration-1';
+          break;
+      }
     }
 
     if (isSelected) {
@@ -107,10 +140,30 @@ export const AnnotatedAnswerView: React.FC<AnnotatedAnswerViewProps> = ({
             </h3>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-xs font-medium">
+          <div className="flex flex-wrap items-center gap-2.5 text-xs font-medium">
+            {/* Safety Legend */}
+            {safetyFlags.length > 0 && (
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-300 font-bold">
+                <ShieldAlert className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
+                <span className="underline decoration-rose-500 decoration-wavy">
+                  Safety Warning ({safetyFlags.length})
+                </span>
+              </span>
+            )}
+
+            {/* Reasoning Legend */}
+            {reasoningIssues.length > 0 && (
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-500/20 border border-violet-500/40 text-violet-300 font-bold">
+                <GitCommit className="w-3.5 h-3.5 text-violet-400" />
+                <span className="underline decoration-violet-400 decoration-dashed">
+                  Reasoning Flaw ({reasoningIssues.length})
+                </span>
+              </span>
+            )}
+
             {/* Contradicted Legend */}
             <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300">
-              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-rose-500" />
               <span className="underline decoration-rose-500 decoration-wavy font-semibold">
                 Contradicted
               </span>
@@ -186,22 +239,31 @@ export const AnnotatedAnswerView: React.FC<AnnotatedAnswerViewProps> = ({
           <span className="flex items-center gap-1.5 text-cyan-400 font-bold">
             <Info className="w-4 h-4" /> AI Answer Text Highlights
           </span>
-          <span>Hover or Tab through highlights, press Enter to open claim detail</span>
+          <span>Hover or Tab through highlights, press Enter to view details</span>
         </div>
 
         <div className="pt-2 text-slate-200 leading-loose">
           {segments.map((segment) => {
-            if (!segment.isHighlighted || !segment.claim) {
+            const safetyFlag = getOverlappingSafety(segment.start, segment.end);
+            const reasoningIssue = getOverlappingReasoning(segment.start, segment.end);
+
+            if (!segment.isHighlighted && !safetyFlag && !reasoningIssue) {
               return <span key={segment.id}>{segment.text}</span>;
             }
 
-            const isSelected = selectedClaim?.id === segment.claim.id;
+            const isClaimSelected = segment.claim && selectedClaim?.id === segment.claim.id;
+            const isSpanSelected =
+              selectedSpan && selectedSpan.start === segment.start && selectedSpan.end === segment.end;
+            const isSelected = !!(isClaimSelected || isSpanSelected);
+
             const isHovered = hoveredSegmentId === segment.id;
 
             const { containerStyle, underlineStyle } = getHighlightStyle(
-              segment.verdict || 'SUPPORTED',
+              segment.verdict,
               !!segment.isErrorSpan,
-              isSelected
+              isSelected,
+              safetyFlag,
+              reasoningIssue
             );
 
             return (
@@ -209,12 +271,16 @@ export const AnnotatedAnswerView: React.FC<AnnotatedAnswerViewProps> = ({
                 <mark
                   tabIndex={0}
                   role="button"
-                  aria-label={`Claim: ${segment.claim.text}. Verdict: ${segment.verdict}`}
-                  onClick={() => onSelectClaim(segment.claim!)}
+                  aria-label={`Highlight: ${segment.text}`}
+                  onClick={() => {
+                    if (segment.claim && onSelectClaim) {
+                      onSelectClaim(segment.claim);
+                    }
+                  }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
+                    if ((e.key === 'Enter' || e.key === ' ') && segment.claim && onSelectClaim) {
                       e.preventDefault();
-                      onSelectClaim(segment.claim!);
+                      onSelectClaim(segment.claim);
                     }
                   }}
                   onMouseEnter={() => setHoveredSegmentId(segment.id)}
@@ -224,35 +290,78 @@ export const AnnotatedAnswerView: React.FC<AnnotatedAnswerViewProps> = ({
                   className={`px-1.5 py-0.5 mx-0.5 rounded-md font-medium cursor-pointer transition-all duration-150 inline-flex items-center gap-1 border ${containerStyle} ${underlineStyle} focus:outline-none focus:ring-2 focus:ring-cyan-400`}
                 >
                   <span>{segment.text}</span>
-                  {segment.verdict === 'CONTRADICTED' && (
+                  {safetyFlag && (
+                    <ShieldAlert className="w-3.5 h-3.5 text-rose-300 shrink-0 inline ml-0.5" />
+                  )}
+                  {!safetyFlag && reasoningIssue && (
+                    <GitCommit className="w-3.5 h-3.5 text-violet-300 shrink-0 inline ml-0.5" />
+                  )}
+                  {!safetyFlag && !reasoningIssue && segment.verdict === 'CONTRADICTED' && (
                     <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0 inline ml-0.5" />
                   )}
-                  {segment.verdict === 'UNSUPPORTED' && (
+                  {!safetyFlag && !reasoningIssue && segment.verdict === 'UNSUPPORTED' && (
                     <HelpCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 inline ml-0.5" />
                   )}
-                  {segment.verdict === 'SUPPORTED' && (
+                  {!safetyFlag && !reasoningIssue && segment.verdict === 'SUPPORTED' && (
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 inline ml-0.5" />
                   )}
                 </mark>
 
                 {/* Hover Tooltip Popover */}
                 {(isHovered || isSelected) && (
-                  <div className="absolute z-30 bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-3 rounded-xl bg-slate-900 border border-white/20 text-slate-100 shadow-2xl text-xs space-y-2 animate-fadeIn pointer-events-none">
-                    <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
-                      <VerdictBadge verdict={segment.verdict || 'SUPPORTED'} size="sm" />
-                      {segment.category && (
-                        <span className="font-mono text-[10px] uppercase font-bold text-rose-300 bg-rose-500/20 px-1.5 py-0.5 rounded border border-rose-500/30">
-                          {CATEGORY_LABELS[segment.category] || segment.category}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-slate-300 font-sans leading-normal">
-                      {segment.claim.explanation || 'No rationale explanation provided.'}
-                    </p>
-                    <div className="text-[10px] text-cyan-400 font-mono pt-1 flex items-center justify-between border-t border-white/5">
-                      <span>Click to view evidence & drawer</span>
-                      <ChevronRight className="w-3 h-3" />
-                    </div>
+                  <div className="absolute z-30 bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 p-3.5 rounded-xl bg-slate-900 border border-white/20 text-slate-100 shadow-2xl text-xs space-y-2 animate-fadeIn pointer-events-none">
+                    {/* Safety Flag Popover */}
+                    {safetyFlag ? (
+                      <>
+                        <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+                          <span className="font-mono text-[10px] uppercase font-bold text-rose-300 bg-rose-500/20 px-2 py-0.5 rounded border border-rose-500/40 flex items-center gap-1">
+                            <ShieldAlert className="w-3 h-3 text-rose-400" />
+                            Safety Flag ({safetyFlag.severity})
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">
+                            Domain: {safetyFlag.domain}
+                          </span>
+                        </div>
+                        <p className="text-slate-200 font-sans leading-normal">
+                          {safetyFlag.explanation}
+                        </p>
+                        <div className="p-2 rounded bg-slate-950 border border-emerald-500/20 text-emerald-300 text-[11px]">
+                          <strong>Safer Option:</strong> {safetyFlag.recommendation}
+                        </div>
+                      </>
+                    ) : reasoningIssue ? (
+                      /* Reasoning Issue Popover */
+                      <>
+                        <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+                          <span className="font-mono text-[10px] uppercase font-bold text-violet-300 bg-violet-500/20 px-2 py-0.5 rounded border border-violet-500/40 flex items-center gap-1">
+                            <GitCommit className="w-3 h-3 text-violet-400" />
+                            {reasoningIssue.type}
+                          </span>
+                        </div>
+                        <p className="text-slate-200 font-sans leading-normal">
+                          {reasoningIssue.explanation}
+                        </p>
+                      </>
+                    ) : (
+                      /* Claim Verdict Popover */
+                      <>
+                        <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+                          <VerdictBadge verdict={segment.verdict || 'SUPPORTED'} size="sm" />
+                          {segment.category && (
+                            <span className="font-mono text-[10px] uppercase font-bold text-rose-300 bg-rose-500/20 px-1.5 py-0.5 rounded border border-rose-500/30">
+                              {CATEGORY_LABELS[segment.category] || segment.category}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-slate-300 font-sans leading-normal">
+                          {segment.claim?.explanation || 'No rationale explanation provided.'}
+                        </p>
+                        <div className="text-[10px] text-cyan-400 font-mono pt-1 flex items-center justify-between border-t border-white/5">
+                          <span>Click to inspect claim & evidence</span>
+                          <ChevronRight className="w-3 h-3" />
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </span>

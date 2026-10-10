@@ -1,4 +1,4 @@
-import { Claim, Verdict, ErrorCategory } from '../types/contract';
+import { Claim, Verdict, ErrorCategory, ReasoningIssue, SafetyFlag } from '../types/contract';
 
 export interface TextSegment {
   id: string;
@@ -7,15 +7,21 @@ export interface TextSegment {
   end: number;
   isHighlighted: boolean;
   claim?: Claim;
+  reasoningIssue?: ReasoningIssue;
+  safetyFlag?: SafetyFlag;
   verdict?: Verdict;
   category?: ErrorCategory;
   isErrorSpan?: boolean;
+  isReasoningSpan?: boolean;
+  isSafetySpan?: boolean;
 }
 
 export interface SegmentOptions {
   selectedVerdict?: Verdict | 'ALL';
   selectedCategory?: ErrorCategory | 'ALL';
   showOnlyProblems?: boolean;
+  reasoningIssues?: ReasoningIssue[];
+  safetyFlags?: SafetyFlag[];
 }
 
 const SEVERITY_RANK: Record<Verdict, number> = {

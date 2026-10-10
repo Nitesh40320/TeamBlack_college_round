@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { MOCK_AUDIT_RESULT } from '../api/mockData';
-import { Verdict } from '../types/contract';
+import { Verdict, SafetyFlag, ReasoningIssue } from '../types/contract';
 
 describe('Audit Detail Components Logic & Filtering', () => {
   it('correctly calculates verified claims ratio', () => {
@@ -43,5 +43,20 @@ describe('Audit Detail Components Logic & Filtering', () => {
     expect(supports.length).toBe(0);
     expect(contradicts.length).toBe(1);
     expect(related.length).toBe(0);
+  });
+
+  it('correctly calculates max safety severity and handles safety flags', () => {
+    const safetyFlags: SafetyFlag[] = MOCK_AUDIT_RESULT.safetyFlags || [];
+    expect(safetyFlags.length).toBeGreaterThan(0);
+    const hasHighSeverity = safetyFlags.some((f) => f.severity === 'high');
+    expect(hasHighSeverity).toBe(true);
+  });
+
+  it('identifies reasoning issue types and associated claims in reasoning graph', () => {
+    const reasoningIssues: ReasoningIssue[] = MOCK_AUDIT_RESULT.reasoningIssues || [];
+    expect(reasoningIssues.length).toBeGreaterThan(0);
+    const nonSequitur = reasoningIssues.find((i) => i.type === 'NON_SEQUITUR');
+    expect(nonSequitur).toBeDefined();
+    expect(nonSequitur?.claimIds.length).toBe(2);
   });
 });
