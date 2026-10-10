@@ -117,21 +117,67 @@ export async function rerunAudit(id: string): Promise<AuditResult> {
   }
 }
 
-export async function listAudits(): Promise<AuditResult[]> {
+export interface ListAuditsParams {
+  page?: number;
+  limit?: number;
+  status?: string;
+  q?: string;
+  grade?: string;
+  verdict?: string;
+  safetyFlagged?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface ListAuditsResult {
+  data: AuditResult[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export async function listAudits(params?: ListAuditsParams): Promise<ListAuditsResult> {
   try {
-    const res = await fetch(`${BASE_URL}/api/audits`);
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.limit) query.append('limit', params.limit.toString());
+    if (params?.status) query.append('status', params.status);
+    if (params?.q) query.append('q', params.q);
+    if (params?.grade) query.append('grade', params.grade);
+    if (params?.verdict) query.append('verdict', params.verdict);
+    if (params?.safetyFlagged) query.append('safetyFlagged', params.safetyFlagged);
+    if (params?.sortBy) query.append('sortBy', params.sortBy);
+    if (params?.sortOrder) query.append('sortOrder', params.sortOrder);
+
+    const queryString = query.toString();
+    const url = `${BASE_URL}/api/audits${queryString ? `?${queryString}` : ''}`;
+    const res = await fetch(url);
     if (!res.ok) {
       throw new Error(`Server returned status ${res.status}`);
     }
-    const data = await res.json();
-    return data.data || [];
+    const json = await res.json();
+    return {
+      data: json.data || [],
+      pagination: json.pagination || { page: 1, limit: 20, total: (json.data || []).length, totalPages: 1 },
+    };
   } catch (error) {
     console.warn('[apiClient] Failed to fetch audits history, returning mock history.', error);
-    const cached = Array.from(mockAuditCache.values());
-    if (cached.length > 0) {
-      return cached;
+    let items = Array.from(mockAuditCache.values());
+    if (items.length === 0) {
+      items = MOCK_AUDITS_HISTORY;
     }
-    return MOCK_AUDITS_HISTORY;
+    return {
+      data: items,
+      pagination: {
+        page: params?.page || 1,
+        limit: params?.limit || 20,
+        total: items.length,
+        totalPages: Math.ceil(items.length / (params?.limit || 20)) || 1,
+      },
+    };
   }
 }
 

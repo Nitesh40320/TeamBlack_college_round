@@ -27,8 +27,8 @@ describe('apiClient module', () => {
   });
 
   it('lists audits with fallback data', async () => {
-    const list = await listAudits();
-    expect(Array.isArray(list)).toBe(true);
-    expect(list.length).toBeGreaterThan(0);
+    const res = await listAudits();
+    expect(Array.isArray(res.data)).toBe(true);
+    expect(res.data.length).toBeGreaterThan(0);
   });
 });
